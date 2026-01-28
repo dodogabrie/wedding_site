@@ -1,0 +1,55 @@
+/* Local font files */
+@font-face {
+  font-family: 'Aniyah';
+  src: url('../assets/fonts/Aniyah.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Anaktoria';
+  src: url('../assets/fonts/Anaktoria.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-sage text-forest;
+    font-family: 'Anaktoria', Georgia, serif;
+  }
+}
+
+@layer components {
+  .font-script {
+    font-family: 'Aniyah', cursive;
+  }
+
+  .font-serif {
+    font-family: 'Anaktoria', Georgia, serif;
+  }
+
+  .card {
+    @apply bg-cream rounded-lg shadow-md p-4;
+  }
+
+  .card-individual {
+    @apply bg-cream rounded-full px-6 py-3 shadow-md;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

@@ -1,0 +1,29 @@
+Font: Anaktoria
+Text: Siamo lieti di invitarvi al nostro matrimio
+
+Font: Aniyah
+Text: Edoardo & Caterina
+
+Font: Anaktoria
+Text: "Domenica 26 aprile 2026, ore 11:30
+Sala Maggiore del Palazzo degli Anziani,
+Pistoia"
+
+
+--------
+
+Font: Aniyah 
+Text: Sarai presente? 
+
+Font: Anaktoria
+Text: {FamilyBlob|Person}
+
+
+-----
+
+Font: Aniyah
+Text: Programma
+
+Font: Anaktoria
+Text: {programWithTime}
+
