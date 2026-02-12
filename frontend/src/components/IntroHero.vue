@@ -17,17 +17,23 @@
 
     <!-- Main content -->
     <div class="text-center z-10 max-w-2xl flex-1 flex flex-col justify-center">
-      <p ref="subtitle" class="text-forest text-base sm:text-lg md:text-xl lg:text-2xl mt-5 mb-12 sm:mb-16 md:mb-24 opacity-0 font-serif italic">
+      <p ref="subtitle" class="text-forest text-2xl md:text-4xl mt-5 mb-12 md:mb-24 opacity-0 font-serif italic">
         Siamo lieti di invitarvi<br>al nostro matrimonio
       </p>
 
-      <h1 ref="names" class="font-script text-forest text-4xl sm:text-5xl md:text-7xl lg:text-8xl mb-8 opacity-0 leading-normal">
-        <span class="block">Edoardo</span>
-        <span class="block text-3xl sm:text-4xl md:text-5xl lg:text-6xl py-1 sm:py-2 md:py-4">&</span>
-        <span class="block mt-1 sm:mt-2 md:mt-4">Caterina</span>
+      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mb-8 leading-normal">
+        <span class="block text-center md:text-left md:mr-20">
+          <span v-for="(char, i) in 'Edoardo'" :key="'e'+i" class="inline-block opacity-0" :ref="el => { if (el) edoardoChars[i] = el }">{{ char }}</span>
+        </span>
+        <span class="block text-center text-3xl md:text-5xl py-2 md:py-4">
+          <span ref="ampersand" class="inline-block opacity-0">&</span>
+        </span>
+        <span class="block text-center md:text-right mt-2 md:mt-4 md:ml-20">
+          <span v-for="(char, i) in 'Caterina'" :key="'c'+i" class="inline-block opacity-0" :ref="el => { if (el) caterinaChars[i] = el }">{{ char }}</span>
+        </span>
       </h1>
 
-      <div ref="details" class="text-forest text-sm sm:text-base md:text-lg lg:text-xl mt-12 sm:mt-16 md:mt-20 opacity-0 font-serif">
+      <div ref="details" class="text-forest text-xl md:text-3xl mt-12 md:mt-20 opacity-0 font-serif">
         <p>Domenica 26 aprile 2026, ore 11:30</p>
         <p>Sala Maggiore del Palazzo degli Anziani,</p>
         <p>Pistoia</p>
@@ -58,6 +64,9 @@ const subtitle = ref(null)
 const names = ref(null)
 const details = ref(null)
 const divider = ref(null)
+const edoardoChars = ref([])
+const caterinaChars = ref([])
+const ampersand = ref(null)
 
 onMounted(() => {
   const tl = gsap.timeline({ defaults: { ease: 'power2.out' } })
@@ -76,22 +85,49 @@ onMounted(() => {
     duration: 0.8
   }, 0.3)
 
-  tl.to(names.value, {
-    opacity: 1,
-    y: 0,
-    duration: 1
-  }, 0.6)
+  // Typewriter effect for names with fade
+  tl.fromTo(edoardoChars.value,
+    { opacity: 0, scale: 0.5, y: 20 },
+    {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.3,
+      stagger: 0.08,
+      ease: 'back.out(1.7)'
+    }, 0.6)
+
+  tl.fromTo(ampersand.value,
+    { opacity: 0, scale: 0.5, y: 20 },
+    {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.4,
+      ease: 'back.out(1.7)'
+    }, '>')
+
+  tl.fromTo(caterinaChars.value,
+    { opacity: 0, scale: 0.5, y: 20 },
+    {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.3,
+      stagger: 0.08,
+      ease: 'back.out(1.7)'
+    }, '>')
 
   tl.to(details.value, {
     opacity: 1,
     y: 0,
     duration: 0.8
-  }, 1)
+  }, '+=0.3')
 
   tl.to(divider.value, {
     opacity: 1,
     duration: 0.6
-  }, 1.3)
+  }, '>')
 
 
 })
