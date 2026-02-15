@@ -1,5 +1,8 @@
 <template>
   <section class="relative min-h-screen py-20 px-4">
+    <!-- Flight overlay for animated clones -->
+    <div ref="flightOverlay" class="fixed inset-0 pointer-events-none" style="z-index: 50;"></div>
+
     <div class="max-w-4xl mx-auto">
       <!-- Header -->
       <h2 ref="header" class="font-script text-forest text-4xl md:text-5xl lg:text-6xl text-center mb-8 opacity-0">
@@ -21,7 +24,6 @@
         <Transition name="fade" mode="out-in" @enter="onTransitionEnter">
           <!-- Bubbles View -->
           <div v-if="!selectedItem" key="bubbles">
-            <!-- Search Bar -->
             <div class="mb-8">
               <input
                 v-model="searchQuery"
@@ -29,34 +31,118 @@
                 placeholder="Cerca per nome..."
                 class="w-full max-w-md mx-auto block bg-cream text-forest font-serif px-6 py-3 border-2 border-forest/20 rounded-full focus:outline-none focus:border-forest/40 transition-colors"
               />
+              <!-- Reserve chip area height to avoid pushing rings down when matches appear -->
+              <div class="mt-3 mx-auto max-w-md h-16 relative">
+                <div
+                  v-if="searchQuery.trim().length > 0 && matchingBubbles.length > 0"
+                  class="absolute inset-0 flex flex-wrap gap-2 justify-center content-start"
+                >
+                  <button
+                    v-for="bubble in matchingBubbles"
+                    :key="`match-${bubble.id}`"
+                    :ref="el => setChipRef(el, bubble.id)"
+                    @click="selectBubble(bubble)"
+                    class="bg-cream/95 text-forest font-serif text-sm px-3 py-1 rounded-full border border-forest/20 shadow-sm"
+                    :style="{ opacity: dockedBubbleIds[bubble.id] ? 1 : 0 }"
+                  >
+                    <span>{{ bubble.displayText }}</span>
+                    <span v-if="bubble.type === 'family'" class="ml-1 text-[11px] opacity-70">(Apri)</span>
+                  </button>
+                </div>
+              </div>
+              <p class="text-center font-serif text-forest/70 text-sm mt-2">
+                Per famiglie: clicca sul nome famiglia per aprire la scheda.
+              </p>
+
+              <div
+                v-if="singleMatchedGuestBubble"
+                class="mt-4 mx-auto max-w-md bg-cream/90 border border-forest/20 rounded-2xl px-4 py-3 shadow-sm"
+              >
+                <p class="font-serif text-forest text-center text-lg">
+                  {{ singleMatchedGuestBubble.displayText }}
+                </p>
+                <div class="mt-3 flex items-center justify-center gap-2">
+                  <button
+                    class="font-serif px-4 py-2 rounded-full border transition-colors"
+                    :class="singleMatchedGuestBubble.data.attending === true ? 'bg-forest text-cream border-forest' : 'bg-cream text-forest border-forest/30 hover:border-forest/60'"
+                    :disabled="inlineGuestLoading"
+                    @click="setSingleGuestAttendance(singleMatchedGuestBubble, true)"
+                  >
+                    Ci saro
+                  </button>
+                  <button
+                    class="font-serif px-4 py-2 rounded-full border transition-colors"
+                    :class="singleMatchedGuestBubble.data.attending === false ? 'bg-forest text-cream border-forest' : 'bg-cream text-forest border-forest/30 hover:border-forest/60'"
+                    :disabled="inlineGuestLoading"
+                    @click="setSingleGuestAttendance(singleMatchedGuestBubble, false)"
+                  >
+                    Non ci saro
+                  </button>
+                </div>
+                <p v-if="inlineGuestError" class="mt-2 text-center text-sm text-red-800 font-serif">
+                  {{ inlineGuestError }}
+                </p>
+              </div>
             </div>
 
-            <!-- Heart Container -->
-            <div ref="heartContainer" class="relative w-full aspect-square max-w-2xl mx-auto">
-              <!-- Visible SVG path for reference -->
-              <svg class="absolute inset-0 w-full h-full" viewBox="-10 -10 20 20" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  id="heart-path"
-                  :d="heartPathData"
-                  fill="none"
-                  stroke="red"
-                  stroke-width="0.3"
-                />
-              </svg>
+            <!-- Two clipped side tracks on both desktop and mobile. -->
+            <div
+              ref="ringsContainer"
+              class="relative w-screen left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-visible"
+            >
+              <div class="absolute left-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
+                <div
+                  ref="leftTrackContainer"
+                  class="absolute inset-0 pointer-events-auto"
+                >
+                  <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path ref="leftPath" :d="leftTrajectoryPathData" fill="none" stroke="red" stroke-width="0.35" />
+                  </svg>
 
-              <!-- Bubbles -->
-              <button
-                v-for="bubble in filteredBubbles"
-                :key="bubble.id"
-                :ref="el => setBubbleRef(el, bubble.id)"
-                :data-bubble-id="bubble.id"
-                @click="selectBubble(bubble)"
-                :aria-label="bubble.fullName"
-                class="rsvp-bubble absolute bg-cream text-forest font-serif px-4 py-2 rounded-full shadow-md transition-all duration-300 hover:shadow-lg hover:scale-110"
-                style="will-change: transform"
-              >
-                {{ bubble.displayText }}
-              </button>
+                  <button
+                    v-for="bubble in leftTrackBubbles"
+                    :key="bubble.id"
+                    :ref="el => setBubbleRef(el, bubble.id)"
+                    :data-bubble-id="bubble.id"
+                    data-track="left"
+                    @click="selectBubble(bubble)"
+                    :aria-label="bubble.fullName"
+                    class="rsvp-bubble absolute"
+                    style="will-change: transform"
+                  >
+                    <span class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-tight text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-3 md:px-4 py-2 rounded-full shadow-md transition-shadow duration-200 hover:shadow-lg">
+                      {{ bubble.displayText }}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="absolute right-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
+                <div
+                  ref="rightTrackContainer"
+                  class="absolute inset-0 pointer-events-auto"
+                >
+                  <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path ref="rightPath" :d="rightTrajectoryPathData" fill="none" stroke="red" stroke-width="0.35" />
+                  </svg>
+
+                  <button
+                    v-for="bubble in rightTrackBubbles"
+                    :key="bubble.id"
+                    :ref="el => setBubbleRef(el, bubble.id)"
+                    :data-bubble-id="bubble.id"
+                    data-track="right"
+                    @click="selectBubble(bubble)"
+                    :aria-label="bubble.fullName"
+                    class="rsvp-bubble absolute"
+                    style="will-change: transform"
+                  >
+                    <span class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-tight text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-3 md:px-4 py-2 rounded-full shadow-md transition-shadow duration-200 hover:shadow-lg">
+                      {{ bubble.displayText }}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -100,15 +186,21 @@ import { MotionPathPlugin } from 'gsap/MotionPathPlugin'
 
 import RSVPCard from './RSVPCard.vue'
 import RSVPFamilyCard from './RSVPFamilyCard.vue'
-import { getFamilies, getGuests } from '../services/api'
+import { getFamilies, getGuests, updateGuest } from '../services/api'
 
 gsap.registerPlugin(ScrollTrigger, MotionPathPlugin)
 gsap.config({ force3D: true })
 
-// Template refs used for section entrance animation and rotating bubbles layout.
+// Template refs used by entrance animation and rotating track layouts.
 const header = ref(null)
-const heartContainer = ref(null)
+const ringsContainer = ref(null)
+const leftTrackContainer = ref(null)
+const rightTrackContainer = ref(null)
+const leftPath = ref(null)
+const rightPath = ref(null)
 const bubbleRefs = ref({})
+const flightOverlay = ref(null)
+const chipRefs = ref({})
 
 // Data source collections and UI states.
 const families = ref([])
@@ -116,18 +208,40 @@ const individuals = ref([])
 const loading = ref(true)
 const error = ref(null)
 
-// Detail panel state.
+// Detail panel and responsiveness states.
 const selectedItem = ref(null)
 const selectedType = ref(null)
 const searchQuery = ref('')
+const isMobile = ref(false)
 
-// Single GSAP timeline driving initial placement + infinite rotation.
-const rotationTimeline = ref(null)
+// Per-bubble rotation tweens and slot metadata.
+const bubbleTweens = new Map()
+const bubbleSlots = new Map()
+let rotationGeneration = 0
+let removeMediaListener = null
 
-// Animation/layout constants for the rotating ring.
+// Flight state: tracks bubbles currently in flight or docked at chip area.
+const flyingBubbles = new Map()
+const dockedBubbleIds = ref({})
+let reconcileTimer = null
+const staggerFlightTimers = new Set()
+let reconcileGeneration = 0
+const prefersReducedMotion = ref(false)
+const inlineGuestLoading = ref(false)
+const inlineGuestError = ref('')
+
+// Animation/layout constants for side trajectories.
 const ROTATION_DURATION = 60
-const CIRCLE_RADIUS = 8
+const TRAJECTORY_RADIUS_X_DESKTOP = 80
+const TRAJECTORY_RADIUS_Y_DESKTOP = 44
+const TRAJECTORY_SIDE_OFFSET_DESKTOP = 36
+
+const TRAJECTORY_RADIUS_X_MOBILE = 76
+const TRAJECTORY_RADIUS_Y_MOBILE = 82
+const TRAJECTORY_SIDE_OFFSET_MOBILE = 34
+const TRAJECTORY_CENTER_Y_MOBILE = 4
 const PATH_SAMPLES = 200
+const FLIGHT_SPEED_PX_PER_SEC = 900
 
 const allBubbles = computed(() => {
   const bubbles = []
@@ -159,7 +273,6 @@ const filteredBubbles = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   const hasQuery = query.length > 0
 
-  // Keep original order, adding search metadata used by highlight animation.
   return allBubbles.value.map(bubble => ({
     ...bubble,
     matches: hasQuery && bubble.fullName.toLowerCase().startsWith(query),
@@ -167,14 +280,52 @@ const filteredBubbles = computed(() => {
   }))
 })
 
-const heartPathData = computed(() => {
+// Small visible helper list so search results are always on screen.
+const matchingBubbles = computed(() =>
+  filteredBubbles.value.filter(bubble => bubble.matches).slice(0, 10)
+)
+
+const singleMatchedGuestBubble = computed(() => {
+  if (searchQuery.value.trim().length === 0) return null
+  if (matchingBubbles.value.length !== 1) return null
+  const bubble = matchingBubbles.value[0]
+  return bubble.type === 'individual' ? bubble : null
+})
+
+/**
+ * Split bubbles into left/right groups with unique membership (no duplicates).
+ */
+const trackBubbles = computed(() => {
+  const left = []
+  const right = []
+
+  filteredBubbles.value.forEach((bubble, index) => {
+    if (index % 2 === 0) {
+      left.push(bubble)
+    } else {
+      right.push(bubble)
+    }
+  })
+
+  return { left, right }
+})
+
+const leftTrackBubbles = computed(() => trackBubbles.value.left)
+const rightTrackBubbles = computed(() => trackBubbles.value.right)
+const renderedBubbles = computed(() => [...leftTrackBubbles.value, ...rightTrackBubbles.value])
+
+/**
+ * Build a sampled ellipse path around a custom center.
+ * We keep a full closed path so GSAP can loop continuously;
+ * clipping exposes each side as a half-moon.
+ */
+function buildTrajectoryPath(centerX, centerY, radiusX, radiusY) {
   const points = []
 
-  // Build a sampled circular SVG path used as the motion path for each bubble.
   for (let i = 0; i < PATH_SAMPLES; i++) {
     const t = (i / PATH_SAMPLES) * 2 * Math.PI
-    const x = CIRCLE_RADIUS * Math.cos(t)
-    const y = CIRCLE_RADIUS * Math.sin(t)
+    const x = centerX + radiusX * Math.cos(t)
+    const y = centerY + radiusY * Math.sin(t)
     points.push([x, y])
   }
 
@@ -183,6 +334,25 @@ const heartPathData = computed(() => {
   )
 
   return pathParts.join(' ') + ' Z'
+}
+
+// Left circle center is outside to the left; right circle center is outside to the right.
+const leftTrajectoryPathData = computed(() => {
+  const radiusX = isMobile.value ? TRAJECTORY_RADIUS_X_MOBILE : TRAJECTORY_RADIUS_X_DESKTOP
+  const radiusY = isMobile.value ? TRAJECTORY_RADIUS_Y_MOBILE : TRAJECTORY_RADIUS_Y_DESKTOP
+  const sideOffset = isMobile.value ? TRAJECTORY_SIDE_OFFSET_MOBILE : TRAJECTORY_SIDE_OFFSET_DESKTOP
+  const centerY = isMobile.value ? TRAJECTORY_CENTER_Y_MOBILE : 50
+
+  return buildTrajectoryPath(-sideOffset, centerY, radiusX, radiusY)
+})
+
+const rightTrajectoryPathData = computed(() => {
+  const radiusX = isMobile.value ? TRAJECTORY_RADIUS_X_MOBILE : TRAJECTORY_RADIUS_X_DESKTOP
+  const radiusY = isMobile.value ? TRAJECTORY_RADIUS_Y_MOBILE : TRAJECTORY_RADIUS_Y_DESKTOP
+  const sideOffset = isMobile.value ? TRAJECTORY_SIDE_OFFSET_MOBILE : TRAJECTORY_SIDE_OFFSET_DESKTOP
+  const centerY = isMobile.value ? TRAJECTORY_CENTER_Y_MOBILE : 50
+
+  return buildTrajectoryPath(100 + sideOffset, centerY, radiusX, radiusY)
 })
 
 function setBubbleRef(el, id) {
@@ -190,6 +360,14 @@ function setBubbleRef(el, id) {
     bubbleRefs.value[id] = el
   } else {
     delete bubbleRefs.value[id]
+  }
+}
+
+function setChipRef(el, id) {
+  if (el) {
+    chipRefs.value[id] = el
+  } else {
+    delete chipRefs.value[id]
   }
 }
 
@@ -219,67 +397,582 @@ function getBubbleElement(bubbleId, bubbleElements) {
   return Array.from(bubbleElements).find(el => el.dataset.bubbleId === bubbleId)
 }
 
+function getBubbleVisualElement(bubbleElement) {
+  if (!bubbleElement) return null
+  return bubbleElement.querySelector('.bubble-visual')
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t
+}
+
+function placeCloneBetweenRects(clone, fromRect, toRect, t) {
+  const fromCx = fromRect.left + fromRect.width / 2
+  const fromCy = fromRect.top + fromRect.height / 2
+  const toCx = toRect.left + toRect.width / 2
+  const toCy = toRect.top + toRect.height / 2
+
+  const width = lerp(fromRect.width, toRect.width, t)
+  const height = lerp(fromRect.height, toRect.height, t)
+  const cx = lerp(fromCx, toCx, t)
+  const cy = lerp(fromCy, toCy, t)
+
+  gsap.set(clone, {
+    left: cx - width / 2,
+    top: cy - height / 2,
+    width,
+    height,
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0
+  })
+}
+
+/**
+ * Create a single rotation tween for one bubble.
+ */
+function createBubbleRotationTween(bubbleId, slot, paused = false, elementOverride = null) {
+  const el = elementOverride ||
+    bubbleRefs.value[bubbleId] ||
+    ringsContainer.value?.querySelector(`[data-bubble-id="${bubbleId}"]`)
+  if (!el || !slot) return null
+
+  return gsap.to(el, {
+    motionPath: {
+      path: slot.pathElement,
+      align: slot.pathElement,
+      alignOrigin: [0.5, 0.5],
+      start: slot.startProgress,
+      end: slot.startProgress + slot.direction
+    },
+    duration: ROTATION_DURATION,
+    ease: 'none',
+    repeat: -1,
+    paused
+  })
+}
+
+function pauseRotations() {
+  bubbleTweens.forEach(tween => tween.pause())
+}
+
+function killRotations() {
+  rotationGeneration++
+  bubbleTweens.forEach(tween => tween.kill())
+  bubbleTweens.clear()
+  bubbleSlots.clear()
+}
+
 /**
  * Open the chosen bubble.
- * Individuals animate to center before switching to detail view.
+ * Individuals get a short focus animation before switching to detail view.
  */
 function selectBubble(bubble) {
+  if (singleMatchedGuestBubble.value?.id === bubble.id && bubble.type === 'individual') {
+    return
+  }
+
+  const isStillMatch = searchQuery.value.trim().length > 0 &&
+    bubble.fullName.toLowerCase().startsWith(searchQuery.value.toLowerCase().trim())
+
+  // Clean up flight state only when bubble is not currently a search match.
+  // If still matched, keep the current visual state to avoid restart/jump.
+  const flightState = flyingBubbles.get(bubble.id)
+  if (flightState && !isStillMatch) {
+    if (flightState.tween) flightState.tween.kill()
+    if (flightState.clone && flightState.clone.parentNode) flightState.clone.remove()
+    flyingBubbles.delete(bubble.id)
+    delete dockedBubbleIds.value[bubble.id]
+    const el = bubbleRefs.value[bubble.id]
+    if (el) gsap.set(el, { autoAlpha: 1 })
+  }
+
+  pauseRotations()
+
   if (bubble.type === 'individual') {
     const element = bubbleRefs.value[bubble.id]
-    if (!element) return
+    const visualElement = getBubbleVisualElement(element)
 
-    if (rotationTimeline.value) {
-      rotationTimeline.value.pause()
+    if (visualElement && !flyingBubbles.has(bubble.id)) {
+      gsap.to(visualElement, {
+        scale: 1.25,
+        backgroundColor: '#9DAD8F',
+        duration: 0.35,
+        ease: 'back.out(1.7)'
+      })
     }
-
-    gsap.to(element, {
-      x: 0,
-      y: 0,
-      left: '50%',
-      top: '50%',
-      scale: 1.5,
-      backgroundColor: '#9DAD8F',
-      duration: 0.5,
-      ease: 'back.out(1.7)'
-    })
 
     setTimeout(() => {
       selectedItem.value = bubble.data
       selectedType.value = bubble.type
-    }, 500)
-  } else {
-    if (rotationTimeline.value) {
-      rotationTimeline.value.pause()
-    }
-
-    selectedItem.value = bubble.data
-    selectedType.value = bubble.type
+    }, 350)
+    return
   }
+
+  selectedItem.value = bubble.data
+  selectedType.value = bubble.type
 }
 
 function clearSelection() {
+  // Keep current search context when returning from detail view.
+  // This prevents "search restart" and lets match flights be restored.
+  killAllFlights()
   selectedItem.value = null
   selectedType.value = null
-  searchQuery.value = ''
+}
+
+async function setSingleGuestAttendance(bubble, attending) {
+  if (!bubble || bubble.type !== 'individual') return
+  if (inlineGuestLoading.value) return
+  if (bubble.data.attending === attending) return
+
+  inlineGuestError.value = ''
+  inlineGuestLoading.value = true
+  try {
+    const updated = await updateGuest(bubble.data.id, { attending })
+    updateIndividual(updated)
+  } catch (error) {
+    inlineGuestError.value = 'Errore nel salvataggio. Riprova.'
+    console.error('Failed to update RSVP inline:', error)
+  } finally {
+    inlineGuestLoading.value = false
+  }
 }
 
 /**
- * Recreate bubble animation when transition returns to the bubbles view.
+ * Create one track of per-bubble tweens:
+ * 1) snap bubbles to evenly distributed start positions
+ * 2) create individual rotation tweens after snap completes.
  */
-function onTransitionEnter(_el) {
-  if (!selectedItem.value) {
-    if (rotationTimeline.value) {
-      rotationTimeline.value.kill()
-      rotationTimeline.value = null
+function initializeTrackRotation({ key, pathElement, containerElement, direction }) {
+  if (!pathElement || !containerElement) return
+
+  const bubbleElements = containerElement.querySelectorAll('.rsvp-bubble')
+  if (!bubbleElements || bubbleElements.length === 0) return
+
+  const gen = rotationGeneration
+
+  Array.from(bubbleElements).forEach((element, index) => {
+    const bubbleId = element.dataset.bubbleId
+    const startProgress = index / bubbleElements.length
+    bubbleRefs.value[bubbleId] = element
+
+    // Store slot metadata for later flight-back recreation
+    bubbleSlots.set(bubbleId, {
+      track: key,
+      slotIndex: index,
+      startProgress,
+      direction,
+      pathElement
+    })
+
+    // Kill any existing tweens on this element
+    gsap.killTweensOf(element)
+
+    // Snap animation to initial position
+    gsap.to(element, {
+      motionPath: {
+        path: pathElement,
+        align: pathElement,
+        alignOrigin: [0.5, 0.5],
+        start: startProgress,
+        end: startProgress
+      },
+      duration: 0.8,
+      ease: 'power2.out',
+      onComplete: () => {
+        // Guard against stale callbacks after killRotations
+        if (gen !== rotationGeneration) return
+
+        const rotTween = createBubbleRotationTween(
+          bubbleId,
+          bubbleSlots.get(bubbleId),
+          false,
+          element
+        )
+        if (rotTween) bubbleTweens.set(bubbleId, rotTween)
+      }
+    })
+  })
+}
+
+/**
+ * Initialize visible tracks:
+ * - desktop: left and right with opposite directions
+ * - mobile: left and right with opposite directions.
+ */
+function initializeRotation() {
+  killRotations()
+  const gen = rotationGeneration
+
+  initializeTrackRotation({
+    key: 'right',
+    pathElement: rightPath.value,
+    containerElement: rightTrackContainer.value,
+    direction: 1
+  })
+
+  initializeTrackRotation({
+    key: 'left',
+    pathElement: leftPath.value,
+    containerElement: leftTrackContainer.value,
+    direction: -1
+  })
+
+  // Fallback: ensure every slotted bubble has an active rotation tween.
+  // This covers rare missed onComplete callbacks during rapid relayouts.
+  setTimeout(() => {
+    if (gen !== rotationGeneration) return
+    bubbleSlots.forEach((slot, bubbleId) => {
+      if (bubbleTweens.has(bubbleId)) return
+      const rotTween = createBubbleRotationTween(bubbleId, slot)
+      if (rotTween) bubbleTweens.set(bubbleId, rotTween)
+    })
+  }, 900)
+}
+
+/**
+ * Apply search emphasis:
+ * - matching bubbles are highlighted
+ * - non matching bubbles are muted
+ * - bubbles in flight are skipped.
+ */
+function updateBubblePositions() {
+  const bubbleElements = ringsContainer.value?.querySelectorAll('.rsvp-bubble')
+  if (!bubbleElements || bubbleElements.length === 0) return
+
+  const hasQuery = searchQuery.value.trim().length > 0
+
+  if (!hasQuery) {
+    bubbleElements.forEach(element => {
+      const bubbleId = element.dataset.bubbleId
+      if (flyingBubbles.has(bubbleId)) return
+      const visualElement = getBubbleVisualElement(element)
+      if (!visualElement) return
+
+      // Avoid heavy animated styles while rings are rotating continuously.
+      gsap.set(visualElement, {
+        autoAlpha: 1,
+        backgroundColor: '#F5F2EB',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+      })
+    })
+    return
+  }
+
+  renderedBubbles.value.forEach((bubble) => {
+    const element = getBubbleElement(bubble.id, bubbleElements)
+    if (!element) return
+    if (flyingBubbles.has(bubble.id)) return
+    const visualElement = getBubbleVisualElement(element)
+    if (!visualElement) return
+
+    if (bubble.matches) {
+      gsap.set(visualElement, {
+        autoAlpha: 1,
+        backgroundColor: '#9DAD8F',
+        boxShadow: '0 10px 15px -5px rgba(61, 79, 61, 0.22), 0 4px 6px -2px rgba(61, 79, 61, 0.18)'
+      })
+    } else {
+      gsap.set(visualElement, {
+        autoAlpha: 0.35,
+        backgroundColor: '#F5F2EB',
+        boxShadow: '0 3px 5px -1px rgba(0, 0, 0, 0.08), 0 1px 3px -1px rgba(0, 0, 0, 0.05)'
+      })
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Flight animation functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Animate a bubble from its orbit position to the chip area.
+ */
+function flyBubbleOut(bubbleId) {
+  if (flyingBubbles.has(bubbleId)) return
+
+  const el = bubbleRefs.value[bubbleId]
+  if (!el) return
+
+  // Keep orbit running and animate a visual clone to the chip area.
+  requestAnimationFrame(() => {
+    // Reduced-motion: instant dock without animation
+    if (prefersReducedMotion.value) {
+      gsap.set(el, { autoAlpha: 0 })
+      flyingBubbles.set(bubbleId, { phase: 'docked', clone: null, tween: null, dockRect: null })
+      dockedBubbleIds.value[bubbleId] = true
+      return
     }
 
-    nextTick(() => {
-      setTimeout(() => {
-        initializeRotation()
-        setTimeout(() => updateBubblePositions(), 50)
-      }, 100)
+    const chipEl = chipRefs.value[bubbleId]
+    if (!chipEl) {
+      return
+    }
+
+    const sourceRect = el.getBoundingClientRect()
+    const targetRect = chipEl.getBoundingClientRect()
+
+    // Create clone in overlay at exact source position
+    const clone = el.cloneNode(true)
+    clone.removeAttribute('data-bubble-id')
+    clone.style.position = 'fixed'
+    clone.style.margin = '0'
+    clone.style.pointerEvents = 'none'
+    clone.style.zIndex = '999'
+    clone.style.transformOrigin = 'center center'
+    flightOverlay.value.appendChild(clone)
+
+    const sourceCx = sourceRect.left + sourceRect.width / 2
+    const sourceCy = sourceRect.top + sourceRect.height / 2
+    const targetCx = targetRect.left + targetRect.width / 2
+    const targetCy = targetRect.top + targetRect.height / 2
+    const distance = Math.hypot(targetCx - sourceCx, targetCy - sourceCy)
+    const flightDuration = Math.max(0.2, distance / FLIGHT_SPEED_PX_PER_SEC)
+
+    // Set clone to exact pixel position and size of original (start invisible)
+    gsap.set(clone, {
+      left: sourceRect.left + 'px',
+      top: sourceRect.top + 'px',
+      width: sourceRect.width + 'px',
+      height: sourceRect.height + 'px',
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 0,
+      visibility: 'visible'
     })
+
+    const flightStateObj = { phase: 'flying-out', clone, tween: null, dockRect: null }
+    flyingBubbles.set(bubbleId, flightStateObj)
+
+    const syncCloneToLive = (t) => {
+      const liveSourceRect = el.getBoundingClientRect()
+      const liveChipEl = chipRefs.value[bubbleId]
+      const liveTargetRect = liveChipEl ? liveChipEl.getBoundingClientRect() : targetRect
+      placeCloneBetweenRects(clone, liveSourceRect, liveTargetRect, t)
+    }
+
+    // Frame-0 sync: clone starts exactly from the current rotating bubble.
+    syncCloneToLive(0)
+    gsap.to(clone, { opacity: 1, duration: 0.06, overwrite: 'auto' })
+    gsap.set(el, { autoAlpha: 0 })
+
+    const progressObj = { t: 0 }
+    flightStateObj.tween = gsap.to(progressObj, {
+      t: 1,
+      duration: flightDuration,
+      ease: 'none',
+      overwrite: 'auto',
+      onUpdate: () => {
+        syncCloneToLive(progressObj.t)
+      },
+      onComplete: () => {
+        clone.remove()
+        const state = flyingBubbles.get(bubbleId)
+        if (state) {
+          state.phase = 'docked'
+          state.clone = null
+          state.tween = null
+          state.dockRect = targetRect
+        }
+        dockedBubbleIds.value[bubbleId] = true
+      }
+    })
+  })
+}
+
+/**
+ * Animate a bubble from the chip area back to its orbit position.
+ */
+function flyBubbleBack(bubbleId) {
+  const state = flyingBubbles.get(bubbleId)
+  if (!state) return
+
+  // Kill any in-progress flight tween
+  if (state.tween) state.tween.kill()
+
+  const el = bubbleRefs.value[bubbleId]
+  if (!el) {
+    if (state.clone && state.clone.parentNode) state.clone.remove()
+    flyingBubbles.delete(bubbleId)
+    delete dockedBubbleIds.value[bubbleId]
+    return
   }
+
+  // Reduced-motion: instant return without animation
+  if (prefersReducedMotion.value) {
+    if (state.clone && state.clone.parentNode) state.clone.remove()
+    flyingBubbles.delete(bubbleId)
+    delete dockedBubbleIds.value[bubbleId]
+    gsap.set(el, { autoAlpha: 1 })
+    return
+  }
+
+  // Determine source position (clone if mid-flight, chip if docked)
+  let sourceRect
+  if (state.clone && state.clone.parentNode) {
+    sourceRect = state.clone.getBoundingClientRect()
+    state.clone.remove()
+  } else if (state.phase === 'docked') {
+    const chipEl = chipRefs.value[bubbleId]
+    if (chipEl) {
+      sourceRect = chipEl.getBoundingClientRect()
+    } else if (state.dockRect) {
+      sourceRect = state.dockRect
+    }
+  }
+
+  delete dockedBubbleIds.value[bubbleId]
+
+  if (!sourceRect) {
+    // Fallback: no source available, just clear docked state.
+    flyingBubbles.delete(bubbleId)
+    gsap.set(el, { autoAlpha: 1 })
+    return
+  }
+
+  // Target is the bubble's live position on the rotating ring.
+  const targetRect = el.getBoundingClientRect()
+
+  // Create return-flight clone
+  const clone = el.cloneNode(true)
+  clone.removeAttribute('data-bubble-id')
+  clone.style.position = 'fixed'
+  clone.style.margin = '0'
+  clone.style.pointerEvents = 'none'
+  clone.style.zIndex = '999'
+  clone.style.transformOrigin = 'center center'
+  flightOverlay.value.appendChild(clone)
+
+  const sourceCx = sourceRect.left + sourceRect.width / 2
+  const sourceCy = sourceRect.top + sourceRect.height / 2
+  const targetCx = targetRect.left + targetRect.width / 2
+  const targetCy = targetRect.top + targetRect.height / 2
+  const distance = Math.hypot(targetCx - sourceCx, targetCy - sourceCy)
+  const flightDuration = Math.max(0.2, distance / FLIGHT_SPEED_PX_PER_SEC)
+
+  gsap.set(clone, {
+    left: sourceRect.left + 'px',
+    top: sourceRect.top + 'px',
+    width: sourceRect.width + 'px',
+    height: sourceRect.height + 'px',
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    opacity: 1,
+    visibility: 'visible'
+  })
+
+  state.phase = 'flying-back'
+  state.clone = clone
+  const progressObj = { t: 0 }
+  state.tween = gsap.to(progressObj, {
+    t: 1,
+    duration: flightDuration,
+    ease: 'none',
+    overwrite: 'auto',
+    onUpdate: () => {
+      const liveTargetRect = el.getBoundingClientRect()
+      placeCloneBetweenRects(clone, sourceRect, liveTargetRect, progressObj.t)
+    },
+    onComplete: () => {
+      clone.remove()
+      gsap.set(el, { autoAlpha: 1 })
+      flyingBubbles.delete(bubbleId)
+    }
+  })
+}
+
+/**
+ * Immediately cancel all flights and restore bubbles to orbiting state.
+ */
+function killAllFlights() {
+  staggerFlightTimers.forEach(timerId => clearTimeout(timerId))
+  staggerFlightTimers.clear()
+
+  flyingBubbles.forEach((state, bubbleId) => {
+    if (state.tween) state.tween.kill()
+    if (state.clone && state.clone.parentNode) state.clone.remove()
+    const el = bubbleRefs.value[bubbleId]
+    if (el) gsap.set(el, { autoAlpha: 1 })
+  })
+  flyingBubbles.clear()
+  dockedBubbleIds.value = {}
+}
+
+/**
+ * Diff current matchingBubbles against flyingBubbles and trigger flights.
+ * New matches fly out with stagger; removed matches fly back.
+ */
+function reconcileFlights() {
+  reconcileGeneration++
+  const generation = reconcileGeneration
+
+  // Cancel pending staggered launches from older queries
+  staggerFlightTimers.forEach(timerId => clearTimeout(timerId))
+  staggerFlightTimers.clear()
+
+  const matchIds = new Set(matchingBubbles.value.map(b => b.id))
+
+  // Fly back bubbles that no longer match
+  const toFlyBack = []
+  flyingBubbles.forEach((_state, bubbleId) => {
+    if (!matchIds.has(bubbleId)) {
+      toFlyBack.push(bubbleId)
+    }
+  })
+  toFlyBack.forEach(id => flyBubbleBack(id))
+
+  // Fly out new matches with 50ms stagger
+  let staggerDelay = 0
+  matchingBubbles.value.forEach(bubble => {
+    if (!flyingBubbles.has(bubble.id)) {
+      const id = bubble.id
+      if (staggerDelay === 0) {
+        flyBubbleOut(id)
+      } else {
+        const timerId = setTimeout(() => {
+          staggerFlightTimers.delete(timerId)
+          if (generation !== reconcileGeneration) return
+          flyBubbleOut(id)
+        }, staggerDelay)
+        staggerFlightTimers.add(timerId)
+      }
+      staggerDelay += 50
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Ring lifecycle
+// ---------------------------------------------------------------------------
+
+function refreshRings() {
+  if (loading.value || selectedItem.value) return
+
+  killAllFlights()
+
+  nextTick(() => {
+    initializeRotation()
+    setTimeout(() => {
+      updateBubblePositions()
+      if (searchQuery.value.trim().length > 0) {
+        reconcileFlights()
+      }
+    }, 40)
+  })
+}
+
+/**
+ * Recreate bubble animations when transition returns to bubbles view.
+ */
+function onTransitionEnter() {
+  refreshRings()
 }
 
 /**
@@ -308,140 +1001,11 @@ function updateFamilyGuest({ guestId, guest }) {
   }
 }
 
-/**
- * Build one timeline:
- * 1) snap each bubble to a unique starting progress on the path
- * 2) rotate forever with synchronized speed.
- */
-function initializeRotation() {
-  if (rotationTimeline.value) {
-    return
-  }
-
-  const bubbles = allBubbles.value
-  if (bubbles.length === 0) return
-
-  const svgPath = document.querySelector('#heart-path')
-  if (!svgPath) {
-    console.error('Heart path not found')
-    return
-  }
-
-  const bubbleElements = heartContainer.value?.querySelectorAll('.rsvp-bubble')
-  if (!bubbleElements || bubbleElements.length === 0) {
-    console.error('No bubble elements found in DOM')
-    return
-  }
-
-  const masterTimeline = gsap.timeline()
-
-  Array.from(bubbleElements).forEach((element, index) => {
-    const startProgress = index / bubbleElements.length
-
-    masterTimeline.to(element, {
-      motionPath: {
-        path: svgPath,
-        align: svgPath,
-        alignOrigin: [0.5, 0.5],
-        start: startProgress,
-        end: startProgress
-      },
-      duration: 1,
-      ease: 'power2.out'
-    }, 0)
-  })
-
-  const rotationStart = masterTimeline.duration()
-
-  Array.from(bubbleElements).forEach((element, index) => {
-    const startProgress = index / bubbleElements.length
-    const endProgress = startProgress + 1
-
-    masterTimeline.to(element, {
-      motionPath: {
-        path: svgPath,
-        align: svgPath,
-        alignOrigin: [0.5, 0.5],
-        start: startProgress,
-        end: endProgress
-      },
-      duration: ROTATION_DURATION,
-      ease: 'none',
-      repeat: -1,
-      repeatDelay: 0
-    }, rotationStart)
-  })
-
-  rotationTimeline.value = masterTimeline
-}
-
-/**
- * Apply search emphasis:
- * - matching bubbles move up and scale
- * - non-matching bubbles return to baseline style.
- */
-function updateBubblePositions() {
-  if (!rotationTimeline.value) {
-    console.warn('Rotation timeline not initialized yet')
-    return
-  }
-
-  const bubbles = filteredBubbles.value
-  const hasQuery = bubbles.some(b => b.hasQuery)
-
-  const bubbleElements = heartContainer.value?.querySelectorAll('.rsvp-bubble')
-  if (!bubbleElements) return
-
-  if (!hasQuery) {
-    bubbleElements.forEach(element => {
-      gsap.to(element, {
-        yPercent: 0,
-        scale: 1,
-        backgroundColor: '#F5F2EB',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        duration: 0.3,
-        ease: 'power2.out'
-      })
-    })
-    return
-  }
-
-  bubbles.forEach((bubble) => {
-    const element = getBubbleElement(bubble.id, bubbleElements)
-
-    if (!element) return
-
-    if (bubble.matches) {
-      gsap.to(element, {
-        yPercent: -180,
-        scale: 1.3,
-        backgroundColor: '#9DAD8F',
-        boxShadow: '0 20px 25px -5px rgba(61, 79, 61, 0.3), 0 10px 10px -5px rgba(61, 79, 61, 0.2)',
-        duration: 0.25,
-        ease: 'back.out(2)'
-      })
-    } else {
-      gsap.to(element, {
-        yPercent: 0,
-        scale: 1,
-        backgroundColor: '#F5F2EB',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        duration: 0.3,
-        ease: 'power2.out'
-      })
-    }
-  })
-}
-
-watch(searchQuery, () => {
-  if (!loading.value && !selectedItem.value && rotationTimeline.value) {
-    updateBubblePositions()
-  }
-})
-
 onMounted(async () => {
   await fetchData()
   await nextTick()
+
+  prefersReducedMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   gsap.to(header.value, {
     opacity: 1,
@@ -454,25 +1018,59 @@ onMounted(async () => {
     }
   })
 
-  await nextTick()
+  const mediaQuery = window.matchMedia('(max-width: 767px)')
+  isMobile.value = mediaQuery.matches
 
-  const initWithRetry = () => {
-    const svgPath = document.querySelector('#heart-path')
-    if (svgPath) {
-      initializeRotation()
-      setTimeout(() => updateBubblePositions(), 50)
-    } else {
-      setTimeout(initWithRetry, 100)
-    }
+  const mediaHandler = (event) => {
+    isMobile.value = event.matches
   }
 
-  setTimeout(initWithRetry, 200)
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', mediaHandler)
+    removeMediaListener = () => mediaQuery.removeEventListener('change', mediaHandler)
+  } else {
+    mediaQuery.addListener(mediaHandler)
+    removeMediaListener = () => mediaQuery.removeListener(mediaHandler)
+  }
+
+  refreshRings()
 })
 
+watch(searchQuery, () => {
+  if (loading.value || selectedItem.value) return
+  inlineGuestError.value = ''
+
+  updateBubblePositions()
+
+  if (reconcileTimer) clearTimeout(reconcileTimer)
+  staggerFlightTimers.forEach(timerId => clearTimeout(timerId))
+  staggerFlightTimers.clear()
+
+  if (searchQuery.value.trim().length === 0) {
+    // Search cleared: fly everything back immediately (chips still in DOM pre-flush)
+    reconcileFlights()
+  } else {
+    reconcileTimer = setTimeout(() => reconcileFlights(), 300)
+  }
+})
+
+watch(
+  () => [isMobile.value, allBubbles.value.length],
+  () => {
+    refreshRings()
+  }
+)
+
 onBeforeUnmount(() => {
-  if (rotationTimeline.value) {
-    rotationTimeline.value.kill()
-    rotationTimeline.value = null
+  if (reconcileTimer) clearTimeout(reconcileTimer)
+  staggerFlightTimers.forEach(timerId => clearTimeout(timerId))
+  staggerFlightTimers.clear()
+  killAllFlights()
+  killRotations()
+
+  if (removeMediaListener) {
+    removeMediaListener()
+    removeMediaListener = null
   }
 })
 </script>

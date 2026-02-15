@@ -21,7 +21,7 @@
         Siamo lieti di invitarvi<br>al nostro matrimonio
       </p>
 
-      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mb-8 leading-normal">
+      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mt-4 mb-1 leading-normal">
         <span class="block text-center md:text-left md:mr-20">
           <span v-for="(char, i) in 'Edoardo'" :key="'e'+i" class="inline-block opacity-0" :ref="el => { if (el) edoardoChars[i] = el }">{{ char }}</span>
         </span>

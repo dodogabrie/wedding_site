@@ -51,7 +51,7 @@ def parse_invitations(filepath: str) -> tuple[list[dict], list[str]]:
                 skip_section = False
 
                 # Check if it's a family or individual marker
-                if 'Famiglia' in section_name or 'Genitori' in section_name:
+                if 'famiglia' in section_name or 'Genitori' or "Virginia & Alfredo" in section_name:
                     if current_family and current_family['members']:
                         families.append(current_family)
                     current_family = {'name': section_name, 'members': []}
