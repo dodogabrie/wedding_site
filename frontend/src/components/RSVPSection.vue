@@ -25,16 +25,26 @@
           <!-- Bubbles View -->
           <div v-if="!selectedItem" key="bubbles">
             <div class="mb-8">
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Cerca per nome..."
-                class="w-full max-w-md mx-auto block bg-cream text-forest font-serif px-6 py-3 border-2 border-forest/20 rounded-full focus:outline-none focus:border-forest/40 transition-colors"
-              />
+              <div class="w-full max-w-md mx-auto">
+                <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-forest/50 pointer-events-none">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+                  </svg>
+                </span>
+                <input
+                  id="rsvp-search"
+                  v-model="searchQuery"
+                  type="text"
+                  placeholder="Clicca per cercare il tuo nome"
+                  class="w-full block bg-transparent text-forest font-serif pl-11 pr-6 py-3 border-2 border-forest/55 rounded-2xl placeholder:text-forest/55 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)] focus:outline-none focus:border-forest/80 focus:shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)] transition-colors"
+                />
+              </div>
+              </div>
               <!-- Reserve chip area height to avoid pushing rings down when matches appear -->
               <div class="mt-3 mx-auto max-w-md h-16 relative">
                 <div
-                  v-if="searchQuery.trim().length > 0 && matchingBubbles.length > 0"
+                  v-if="searchQuery.trim().length > 0 && matchingBubbles.length > 0 && !showSingleGuestActions"
                   class="absolute inset-0 flex flex-wrap gap-2 justify-center content-start"
                 >
                   <button
@@ -43,45 +53,41 @@
                     :ref="el => setChipRef(el, bubble.id)"
                     @click="selectBubble(bubble)"
                     class="bg-cream/95 text-forest font-serif text-sm px-3 py-1 rounded-full border border-forest/20 shadow-sm"
+                    :class="{
+                      'single-match-pulse': singleMatchedGuestBubble && bubble.id === singleMatchedGuestBubble.id && !showSingleGuestActions
+                    }"
                     :style="{ opacity: dockedBubbleIds[bubble.id] ? 1 : 0 }"
                   >
                     <span>{{ bubble.displayText }}</span>
                     <span v-if="bubble.type === 'family'" class="ml-1 text-[11px] opacity-70">(Apri)</span>
                   </button>
                 </div>
-              </div>
-              <p class="text-center font-serif text-forest/70 text-sm mt-2">
-                Per famiglie: clicca sul nome famiglia per aprire la scheda.
-              </p>
-
-              <div
-                v-if="singleMatchedGuestBubble"
-                class="mt-4 mx-auto max-w-md bg-cream/90 border border-forest/20 rounded-2xl px-4 py-3 shadow-sm"
-              >
-                <p class="font-serif text-forest text-center text-lg">
-                  {{ singleMatchedGuestBubble.displayText }}
-                </p>
-                <div class="mt-3 flex items-center justify-center gap-2">
-                  <button
-                    class="font-serif px-4 py-2 rounded-full border transition-colors"
-                    :class="singleMatchedGuestBubble.data.attending === true ? 'bg-forest text-cream border-forest' : 'bg-cream text-forest border-forest/30 hover:border-forest/60'"
-                    :disabled="inlineGuestLoading"
-                    @click="setSingleGuestAttendance(singleMatchedGuestBubble, true)"
-                  >
-                    Ci saro
-                  </button>
-                  <button
-                    class="font-serif px-4 py-2 rounded-full border transition-colors"
-                    :class="singleMatchedGuestBubble.data.attending === false ? 'bg-forest text-cream border-forest' : 'bg-cream text-forest border-forest/30 hover:border-forest/60'"
-                    :disabled="inlineGuestLoading"
-                    @click="setSingleGuestAttendance(singleMatchedGuestBubble, false)"
-                  >
-                    Non ci saro
-                  </button>
+                <div
+                  v-if="showSingleGuestActions && singleMatchedGuestBubble"
+                  class="absolute left-1/2 -translate-x-1/2 top-0 mt-1 w-full max-w-md z-20 pointer-events-none"
+                >
+                  <div class="pointer-events-auto flex items-center justify-center gap-3">
+                    <button
+                      class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
+                      :class="singleMatchedGuestBubble.data.attending === true ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
+                      :disabled="inlineGuestLoading"
+                      @click="setSingleGuestAttendance(singleMatchedGuestBubble, true)"
+                    >
+                      ✓ Ci sarò
+                    </button>
+                    <button
+                      class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
+                      :class="singleMatchedGuestBubble.data.attending === false ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
+                      :disabled="inlineGuestLoading"
+                      @click="setSingleGuestAttendance(singleMatchedGuestBubble, false)"
+                    >
+                      ✕ Non ci sarò
+                    </button>
+                  </div>
+                  <p v-if="inlineGuestError" class="mt-2 text-center text-sm text-red-800 font-serif">
+                    {{ inlineGuestError }}
+                  </p>
                 </div>
-                <p v-if="inlineGuestError" class="mt-2 text-center text-sm text-red-800 font-serif">
-                  {{ inlineGuestError }}
-                </p>
               </div>
             </div>
 
@@ -292,6 +298,15 @@ const singleMatchedGuestBubble = computed(() => {
   return bubble.type === 'individual' ? bubble : null
 })
 
+const showSingleGuestActions = computed(() => {
+  const bubble = singleMatchedGuestBubble.value
+  if (!bubble) return false
+  const query = searchQuery.value.toLowerCase().trim()
+  const isExactMatch = bubble.fullName.toLowerCase() === query
+  if (!isExactMatch) return false
+  return Boolean(dockedBubbleIds.value[bubble.id])
+})
+
 /**
  * Split bubbles into left/right groups with unique membership (no duplicates).
  */
@@ -469,7 +484,8 @@ function killRotations() {
  * Individuals get a short focus animation before switching to detail view.
  */
 function selectBubble(bubble) {
-  if (singleMatchedGuestBubble.value?.id === bubble.id && bubble.type === 'individual') {
+  if (bubble.type === 'individual') {
+    searchQuery.value = bubble.fullName
     return
   }
 
@@ -1089,6 +1105,29 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .rsvp-bubble {
     animation: none !important;
+  }
+
+  .single-match-pulse {
+    animation: none !important;
+  }
+}
+
+.single-match-pulse {
+  animation: single-chip-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes single-chip-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(61, 79, 61, 0.26);
+  }
+  70% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 10px rgba(61, 79, 61, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(61, 79, 61, 0);
   }
 }
 </style>
