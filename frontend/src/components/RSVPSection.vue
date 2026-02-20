@@ -132,7 +132,7 @@
             <!-- Two clipped side tracks on both desktop and mobile. -->
             <div
               ref="ringsContainer"
-              class="relative w-screen left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-visible"
+              class="relative w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-visible"
             >
             <div class="absolute left-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
               <div

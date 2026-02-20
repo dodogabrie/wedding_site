@@ -22,11 +22,17 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: clip;
   }
 
   body {
     @apply bg-sage text-forest text-xl md:text-2xl;
     font-family: 'Anaktoria', Georgia, serif;
+    overflow-x: hidden;
+  }
+
+  #app {
+    overflow-x: hidden;
   }
 }
 
