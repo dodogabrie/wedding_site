@@ -21,12 +21,9 @@
 
       <!-- Content -->
       <div v-else>
-        <Transition name="fade" mode="out-in" @enter="onTransitionEnter">
-          <!-- Bubbles View -->
-          <div v-if="!selectedItem" key="bubbles">
-            <div class="mb-8">
-              <div class="w-full max-w-md mx-auto">
-                <div class="relative">
+        <div class="mb-8">
+          <div class="w-full max-w-md mx-auto">
+            <div class="relative">
                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-forest/50 pointer-events-none">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
@@ -34,151 +31,183 @@
                 </span>
                 <input
                   id="rsvp-search"
+                  ref="searchInput"
                   v-model="searchQuery"
                   type="text"
+                  name="rsvp-search-no-history"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="none"
+                  spellcheck="false"
                   placeholder="Clicca per cercare il tuo nome"
-                  class="w-full block bg-transparent text-forest font-serif pl-11 pr-6 py-3 border-2 border-forest/55 rounded-2xl placeholder:text-forest/55 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)] focus:outline-none focus:border-forest/80 focus:shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)] transition-colors"
+                  class="w-full block bg-transparent text-forest font-serif pl-11 pr-12 py-3 border-2 border-forest/55 rounded-2xl placeholder:text-forest/55 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)] focus:outline-none focus:border-forest/80 focus:shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)] transition-colors"
                 />
-              </div>
-              </div>
-              <!-- Reserve chip area height to avoid pushing rings down when matches appear -->
-              <div class="mt-3 mx-auto max-w-md h-16 relative">
-                <div
-                  v-if="searchQuery.trim().length > 0 && matchingBubbles.length > 0 && !showSingleGuestActions"
-                  class="absolute inset-0 flex flex-wrap gap-2 justify-center content-start"
+                <button
+                  v-if="searchQuery.trim().length > 0"
+                  type="button"
+                  aria-label="Cancella ricerca"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-forest/40 bg-transparent text-forest/70 hover:text-forest hover:border-forest/60 hover:bg-forest/10 transition-colors"
+                  @click="clearSearch"
                 >
-                  <button
-                    v-for="bubble in matchingBubbles"
-                    :key="`match-${bubble.id}`"
-                    :ref="el => setChipRef(el, bubble.id)"
-                    @click="selectBubble(bubble)"
-                    class="bg-cream/95 text-forest font-serif text-sm px-3 py-1 rounded-full border border-forest/20 shadow-sm"
-                    :class="{
-                      'single-match-pulse': singleMatchedGuestBubble && bubble.id === singleMatchedGuestBubble.id && !showSingleGuestActions
-                    }"
-                    :style="{ opacity: dockedBubbleIds[bubble.id] ? 1 : 0 }"
-                  >
-                    <span>{{ bubble.displayText }}</span>
-                    <span v-if="bubble.type === 'family'" class="ml-1 text-[11px] opacity-70">(Apri)</span>
-                  </button>
-                </div>
-                <div
-                  v-if="showSingleGuestActions && singleMatchedGuestBubble"
-                  class="absolute left-1/2 -translate-x-1/2 top-0 mt-1 w-full max-w-md z-20 pointer-events-none"
-                >
-                  <div class="pointer-events-auto flex items-center justify-center gap-3">
-                    <button
-                      class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
-                      :class="singleMatchedGuestBubble.data.attending === true ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
-                      :disabled="inlineGuestLoading"
-                      @click="setSingleGuestAttendance(singleMatchedGuestBubble, true)"
-                    >
-                      ✓ Ci sarò
-                    </button>
-                    <button
-                      class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
-                      :class="singleMatchedGuestBubble.data.attending === false ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
-                      :disabled="inlineGuestLoading"
-                      @click="setSingleGuestAttendance(singleMatchedGuestBubble, false)"
-                    >
-                      ✕ Non ci sarò
-                    </button>
-                  </div>
-                  <p v-if="inlineGuestError" class="mt-2 text-center text-sm text-red-800 font-serif">
-                    {{ inlineGuestError }}
-                  </p>
-                </div>
-              </div>
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
             </div>
+          </div>
+          <!-- Reserve chip area height to avoid pushing rings down when matches appear -->
+          <div class="mt-3 mx-auto max-w-md h-16 relative">
+            <div
+              v-if="searchQuery.trim().length > 0 && matchingBubbles.length > 0 && !showSingleGuestActions && !showFamilyDetailExactMatch"
+              class="absolute inset-0 flex flex-wrap gap-2 justify-center content-start"
+            >
+              <button
+                v-for="bubble in matchingBubbles"
+                :key="`match-${bubble.id}`"
+                :ref="el => setChipRef(el, bubble.id)"
+                @click="selectBubble(bubble)"
+                class="bg-cream/95 text-forest font-serif text-sm px-3 py-1 rounded-full border border-forest/20 shadow-sm"
+                :class="{
+                  'single-match-pulse': singleMatchedGuestBubble && bubble.id === singleMatchedGuestBubble.id && !showSingleGuestActions
+                }"
+                :style="{ opacity: dockedBubbleIds[bubble.id] ? 1 : 0 }"
+              >
+                <span>{{ bubble.displayText }}</span>
+                <span v-if="bubble.type === 'family'" class="ml-1 text-[11px] opacity-70">(Apri)</span>
+              </button>
+            </div>
+            <div
+              v-if="showSingleGuestActions && singleMatchedGuestBubble"
+              class="absolute left-1/2 -translate-x-1/2 top-0 mt-1 w-full max-w-md z-20 pointer-events-none"
+            >
+              <div class="pointer-events-auto flex items-center justify-center gap-3">
+                <button
+                  class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
+                  :class="singleMatchedGuestBubble.data.attending === true ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
+                  :disabled="inlineGuestLoading"
+                  @click="setSingleGuestAttendance(singleMatchedGuestBubble, true)"
+                >
+                  ✓ Ci sarò
+                </button>
+                <button
+                  class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
+                  :class="singleMatchedGuestBubble.data.attending === false ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
+                  :disabled="inlineGuestLoading"
+                  @click="setSingleGuestAttendance(singleMatchedGuestBubble, false)"
+                >
+                  ✕ Non ci sarò
+                </button>
+              </div>
+              <p v-if="inlineGuestError" class="mt-2 text-center text-sm text-red-800 font-serif">
+                {{ inlineGuestError }}
+              </p>
+            </div>
+          </div>
+        </div>
 
+        <div class="relative">
+          <!-- Detail View -->
+          <Transition name="fade">
+            <div v-if="selectedItem" class="absolute left-1/2 -translate-x-1/2 top-0 w-full max-w-xl px-4 md:px-0 z-20">
+              <RSVPFamilyCard
+                v-if="selectedType === 'family'"
+                :family="selectedItem"
+                :show-title="!showFamilyDetailExactMatch"
+                @updated="updateFamilyGuest"
+                class="w-full"
+              />
+
+              <RSVPCard
+                v-if="selectedType === 'individual'"
+                :guest="selectedItem"
+                @updated="updateIndividual"
+                class="w-full"
+              />
+            </div>
+          </Transition>
+
+          <div
+            :class="selectedItem ? 'pointer-events-none opacity-45 transition-opacity duration-300' : 'transition-opacity duration-300'"
+          >
             <!-- Two clipped side tracks on both desktop and mobile. -->
             <div
               ref="ringsContainer"
               class="relative w-screen left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-visible"
             >
-              <div class="absolute left-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
-                <div
-                  ref="leftTrackContainer"
-                  class="absolute inset-0 pointer-events-auto"
-                >
-                  <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <path ref="leftPath" :d="leftTrajectoryPathData" fill="none" stroke="red" stroke-width="0.35" />
-                  </svg>
+            <div class="absolute left-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
+              <div
+                ref="leftTrackContainer"
+                class="absolute inset-0 pointer-events-auto"
+              >
+                <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    ref="leftPath"
+                    :d="leftTrajectoryPathData"
+                    fill="none"
+                    :stroke="SHOW_TRAJECTORY_DEBUG ? 'red' : 'transparent'"
+                    :stroke-width="SHOW_TRAJECTORY_DEBUG ? 0.35 : 0"
+                  />
+                </svg>
 
-                  <button
-                    v-for="bubble in leftTrackBubbles"
-                    :key="bubble.id"
-                    :ref="el => setBubbleRef(el, bubble.id)"
-                    :data-bubble-id="bubble.id"
-                    data-track="left"
-                    @click="selectBubble(bubble)"
-                    :aria-label="bubble.fullName"
-                    class="rsvp-bubble absolute"
-                    style="will-change: transform"
+                <button
+                  v-for="bubble in leftTrackBubbles"
+                  :key="bubble.id"
+                  :ref="el => setBubbleRef(el, bubble.id)"
+                  :data-bubble-id="bubble.id"
+                  data-track="left"
+                  @click="selectBubble(bubble)"
+                  :aria-label="bubble.fullName"
+                  class="rsvp-bubble absolute"
+                  style="will-change: transform"
+                >
+                  <span
+                    class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-tight text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-3 md:px-4 py-2 rounded-full border-2 border-transparent shadow-md transition-shadow duration-200 hover:shadow-lg"
+                    :class="{ 'yes-border': bubble.attendanceState === 'yes' }"
                   >
-                    <span class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-tight text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-3 md:px-4 py-2 rounded-full shadow-md transition-shadow duration-200 hover:shadow-lg">
-                      {{ bubble.displayText }}
-                    </span>
-                  </button>
-                </div>
+                    {{ bubble.displayText }}
+                  </span>
+                </button>
               </div>
+            </div>
 
-              <div class="absolute right-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
-                <div
-                  ref="rightTrackContainer"
-                  class="absolute inset-0 pointer-events-auto"
+            <div class="absolute right-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none">
+              <div
+                ref="rightTrackContainer"
+                class="absolute inset-0 pointer-events-auto"
+              >
+                <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    ref="rightPath"
+                    :d="rightTrajectoryPathData"
+                    fill="none"
+                    :stroke="SHOW_TRAJECTORY_DEBUG ? 'red' : 'transparent'"
+                    :stroke-width="SHOW_TRAJECTORY_DEBUG ? 0.35 : 0"
+                  />
+                </svg>
+
+                <button
+                  v-for="bubble in rightTrackBubbles"
+                  :key="bubble.id"
+                  :ref="el => setBubbleRef(el, bubble.id)"
+                  :data-bubble-id="bubble.id"
+                  data-track="right"
+                  @click="selectBubble(bubble)"
+                  :aria-label="bubble.fullName"
+                  class="rsvp-bubble absolute"
+                  style="will-change: transform"
                 >
-                  <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <path ref="rightPath" :d="rightTrajectoryPathData" fill="none" stroke="red" stroke-width="0.35" />
-                  </svg>
-
-                  <button
-                    v-for="bubble in rightTrackBubbles"
-                    :key="bubble.id"
-                    :ref="el => setBubbleRef(el, bubble.id)"
-                    :data-bubble-id="bubble.id"
-                    data-track="right"
-                    @click="selectBubble(bubble)"
-                    :aria-label="bubble.fullName"
-                    class="rsvp-bubble absolute"
-                    style="will-change: transform"
+                  <span
+                    class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-tight text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-3 md:px-4 py-2 rounded-full border-2 border-transparent shadow-md transition-shadow duration-200 hover:shadow-lg"
+                    :class="{ 'yes-border': bubble.attendanceState === 'yes' }"
                   >
-                    <span class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-tight text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-3 md:px-4 py-2 rounded-full shadow-md transition-shadow duration-200 hover:shadow-lg">
-                      {{ bubble.displayText }}
-                    </span>
-                  </button>
-                </div>
+                    {{ bubble.displayText }}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
-
-          <!-- Detail View -->
-          <div v-else key="detail" class="max-w-xl mx-auto">
-            <button
-              @click="clearSelection"
-              class="mb-6 flex items-center text-forest hover:text-forest/80 transition-colors font-serif"
-            >
-              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Torna alla lista
-            </button>
-
-            <RSVPFamilyCard
-              v-if="selectedType === 'family'"
-              :family="selectedItem"
-              @updated="updateFamilyGuest"
-              class="w-full"
-            />
-
-            <RSVPCard
-              v-if="selectedType === 'individual'"
-              :guest="selectedItem"
-              @updated="updateIndividual"
-              class="w-full"
-            />
-          </div>
-        </Transition>
+        </div>
+        </div>
       </div>
     </div>
   </section>
@@ -207,6 +236,7 @@ const rightPath = ref(null)
 const bubbleRefs = ref({})
 const flightOverlay = ref(null)
 const chipRefs = ref({})
+const searchInput = ref(null)
 
 // Data source collections and UI states.
 const families = ref([])
@@ -248,6 +278,7 @@ const TRAJECTORY_SIDE_OFFSET_MOBILE = 34
 const TRAJECTORY_CENTER_Y_MOBILE = 4
 const PATH_SAMPLES = 200
 const FLIGHT_SPEED_PX_PER_SEC = 900
+const SHOW_TRAJECTORY_DEBUG = false
 
 const allBubbles = computed(() => {
   const bubbles = []
@@ -282,9 +313,22 @@ const filteredBubbles = computed(() => {
   return allBubbles.value.map(bubble => ({
     ...bubble,
     matches: hasQuery && bubble.fullName.toLowerCase().startsWith(query),
+    attendanceState: getBubbleAttendanceState(bubble),
     hasQuery
   }))
 })
+
+function getBubbleAttendanceState(bubble) {
+  if (bubble.type === 'individual') {
+    return bubble.data.attending === true ? 'yes' : 'other'
+  }
+
+  const guests = Array.isArray(bubble.data?.guests) ? bubble.data.guests : []
+  if (guests.length === 0) return 'other'
+
+  const hasAtLeastOneConfirmed = guests.some(guest => guest.attending === true)
+  return hasAtLeastOneConfirmed ? 'yes' : 'other'
+}
 
 // Small visible helper list so search results are always on screen.
 const matchingBubbles = computed(() =>
@@ -305,6 +349,13 @@ const showSingleGuestActions = computed(() => {
   const isExactMatch = bubble.fullName.toLowerCase() === query
   if (!isExactMatch) return false
   return Boolean(dockedBubbleIds.value[bubble.id])
+})
+
+const showFamilyDetailExactMatch = computed(() => {
+  if (selectedType.value !== 'family' || !selectedItem.value) return false
+  const query = searchQuery.value.toLowerCase().trim()
+  if (!query) return false
+  return selectedItem.value.family_name?.toLowerCase() === query
 })
 
 /**
@@ -468,10 +519,6 @@ function createBubbleRotationTween(bubbleId, slot, paused = false, elementOverri
   })
 }
 
-function pauseRotations() {
-  bubbleTweens.forEach(tween => tween.pause())
-}
-
 function killRotations() {
   rotationGeneration++
   bubbleTweens.forEach(tween => tween.kill())
@@ -489,8 +536,9 @@ function selectBubble(bubble) {
     return
   }
 
-  const isStillMatch = searchQuery.value.trim().length > 0 &&
-    bubble.fullName.toLowerCase().startsWith(searchQuery.value.toLowerCase().trim())
+  const normalizedQuery = searchQuery.value.toLowerCase().trim()
+  const isStillMatch = normalizedQuery.length > 0 &&
+    bubble.fullName.toLowerCase().startsWith(normalizedQuery)
 
   // Clean up flight state only when bubble is not currently a search match.
   // If still matched, keep the current visual state to avoid restart/jump.
@@ -504,38 +552,20 @@ function selectBubble(bubble) {
     if (el) gsap.set(el, { autoAlpha: 1 })
   }
 
-  pauseRotations()
-
-  if (bubble.type === 'individual') {
-    const element = bubbleRefs.value[bubble.id]
-    const visualElement = getBubbleVisualElement(element)
-
-    if (visualElement && !flyingBubbles.has(bubble.id)) {
-      gsap.to(visualElement, {
-        scale: 1.25,
-        backgroundColor: '#9DAD8F',
-        duration: 0.35,
-        ease: 'back.out(1.7)'
-      })
-    }
-
-    setTimeout(() => {
-      selectedItem.value = bubble.data
-      selectedType.value = bubble.type
-    }, 350)
-    return
-  }
-
+  searchQuery.value = bubble.fullName
   selectedItem.value = bubble.data
   selectedType.value = bubble.type
 }
 
 function clearSelection() {
-  // Keep current search context when returning from detail view.
-  // This prevents "search restart" and lets match flights be restored.
-  killAllFlights()
   selectedItem.value = null
   selectedType.value = null
+}
+
+function clearSearch() {
+  inlineGuestError.value = ''
+  searchQuery.value = ''
+  nextTick(() => searchInput.value?.focus())
 }
 
 async function setSingleGuestAttendance(bubble, attending) {
@@ -969,7 +999,7 @@ function reconcileFlights() {
 // ---------------------------------------------------------------------------
 
 function refreshRings() {
-  if (loading.value || selectedItem.value) return
+  if (loading.value) return
 
   killAllFlights()
 
@@ -982,13 +1012,6 @@ function refreshRings() {
       }
     }, 40)
   })
-}
-
-/**
- * Recreate bubble animations when transition returns to bubbles view.
- */
-function onTransitionEnter() {
-  refreshRings()
 }
 
 /**
@@ -1053,8 +1076,19 @@ onMounted(async () => {
 })
 
 watch(searchQuery, () => {
-  if (loading.value || selectedItem.value) return
+  if (loading.value) return
   inlineGuestError.value = ''
+
+  const normalizedQuery = searchQuery.value.toLowerCase().trim()
+  if (selectedItem.value) {
+    const selectedLabel = selectedType.value === 'family'
+      ? selectedItem.value?.family_name
+      : selectedItem.value?.name
+
+    if (!selectedLabel || normalizedQuery !== selectedLabel.toLowerCase()) {
+      clearSelection()
+    }
+  }
 
   updateBubblePositions()
 
@@ -1114,6 +1148,10 @@ onBeforeUnmount(() => {
 
 .single-match-pulse {
   animation: single-chip-pulse 1.1s ease-in-out infinite;
+}
+
+.yes-border {
+  border-color: rgba(61, 79, 61, 0.95);
 }
 
 @keyframes single-chip-pulse {

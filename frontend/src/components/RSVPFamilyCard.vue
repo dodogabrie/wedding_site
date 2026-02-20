@@ -1,6 +1,6 @@
 <template>
   <div class="card transition-all hover:shadow-lg">
-    <h3 class="font-serif text-forest text-lg font-medium mb-3">
+    <h3 v-if="showTitle" class="font-serif text-forest text-lg font-medium mb-3">
       {{ family.family_name }}
     </h3>
     <ul class="space-y-2">
@@ -13,29 +13,30 @@
           <span class="text-forest/60">*</span>
           {{ guest.name }}
         </span>
-        <label class="relative flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            :checked="guest.attending"
-            @change="toggleGuestAttending(guest)"
-            class="sr-only peer"
-            :disabled="loading"
-          />
-          <div
-            class="w-5 h-5 border-2 border-forest rounded transition-colors peer-checked:bg-forest peer-checked:border-forest flex items-center justify-center"
-            :class="{ 'opacity-50': loading }"
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="font-serif px-3 py-1.5 rounded-full border-2 transition-colors text-sm"
+            :class="guest.attending === true ? 'bg-forest text-cream border-forest' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70'"
+            :disabled="loadingGuestId === guest.id"
+            aria-label="Ci sarò"
+            @click="setGuestAttending(guest, true)"
           >
-            <svg
-              v-if="guest.attending"
-              class="w-3 h-3 text-cream"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-        </label>
+            <span class="md:hidden">✓</span>
+            <span class="hidden md:inline">✓ Ci sarò</span>
+          </button>
+          <button
+            type="button"
+            class="font-serif px-3 py-1.5 rounded-full border-2 transition-colors text-sm"
+            :class="guest.attending === false ? 'bg-forest text-cream border-forest' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70'"
+            :disabled="loadingGuestId === guest.id"
+            aria-label="Non ci sarò"
+            @click="setGuestAttending(guest, false)"
+          >
+            <span class="md:hidden">✕</span>
+            <span class="hidden md:inline">✕ Non ci sarò</span>
+          </button>
+        </div>
       </li>
     </ul>
   </div>
@@ -49,23 +50,29 @@ const props = defineProps({
   family: {
     type: Object,
     required: true
+  },
+  showTitle: {
+    type: Boolean,
+    default: true
   }
 })
 
 const emit = defineEmits(['updated'])
 
-const loading = ref(false)
+const loadingGuestId = ref(null)
 
-async function toggleGuestAttending(guest) {
-  loading.value = true
+async function setGuestAttending(guest, attending) {
+  if (loadingGuestId.value !== null) return
+  if (guest.attending === attending) return
+
+  loadingGuestId.value = guest.id
   try {
-    const newStatus = !guest.attending
-    const updated = await updateGuest(guest.id, { attending: newStatus })
+    const updated = await updateGuest(guest.id, { attending })
     emit('updated', { guestId: guest.id, guest: updated })
   } catch (error) {
     console.error('Failed to update RSVP:', error)
   } finally {
-    loading.value = false
+    loadingGuestId.value = null
   }
 }
 </script>
