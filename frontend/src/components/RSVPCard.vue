@@ -1,5 +1,8 @@
 <template>
-  <div class="card-individual flex items-center justify-between gap-4 transition-all hover:shadow-lg">
+  <div
+    class="card-individual flex items-center justify-between gap-4 transition-all hover:shadow-lg"
+    :class="guest.attending === true ? 'bg-[#eef5e6] ring-2 ring-forest/45 shadow-[0_0_0_3px_rgba(61,79,61,0.24),0_0_34px_rgba(157,173,143,0.62)]' : ''"
+  >
     <span class="font-serif text-forest text-lg">{{ guest.name }}</span>
     <label class="relative flex items-center cursor-pointer">
       <input

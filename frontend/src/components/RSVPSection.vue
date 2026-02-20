@@ -1151,7 +1151,11 @@ onBeforeUnmount(() => {
 }
 
 .yes-border {
-  border-color: rgba(61, 79, 61, 0.95);
+  border-width: 3px;
+  border-color: rgba(61, 79, 61, 0.98);
+  outline: 2px solid rgba(128, 157, 111, 0.85);
+  outline-offset: 1px;
+  filter: drop-shadow(0 0 10px rgba(128, 157, 111, 0.65));
 }
 
 @keyframes single-chip-pulse {
