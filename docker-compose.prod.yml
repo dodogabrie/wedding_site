@@ -1,0 +1,19 @@
+services:
+  backend:
+    build: ./backend
+    expose:
+      - "8022"
+    volumes:
+      - ./data:/data
+      - ./backend/wedding.db:/app/wedding.db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

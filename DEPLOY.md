@@ -4,98 +4,109 @@
 
 - Docker + Docker Compose installed on the server
 - Git (to clone the repo)
-- Ports 8022 and 5173 open (or a reverse proxy in front)
+- Port 80 open (prod) or ports 8022 + 5173 (dev)
 
 ---
 
-## 1. Clone and configure
+## Development (local)
+
+Quick start with Vite dev server and backend exposed directly.
+
+```bash
+git clone <repo-url>
+cd wedding_site
+docker compose up --build -d
+```
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8022`
+
+The DB is seeded from `data/invitation.txt` on every start.
+
+---
+
+## Production
+
+Uses `docker-compose.prod.yml`: nginx serves the built static frontend on port 80
+and proxies `/api/*` to the backend internally. The backend is not exposed publicly.
+
+### 1. Clone and prepare
 
 ```bash
 git clone <repo-url>
 cd wedding_site
 ```
 
-Make sure `data/invitation.txt` is present — it seeds the database on first start.
+Make sure `data/invitation.txt` is present.
 
----
+### 2. Check CORS
 
-## 2. Update CORS (before building)
+`backend/main.py` already includes `https://caterina.edoardogabrielli.com` in `allow_origins`.
+If the domain changes, update that list before building.
 
-In `backend/main.py`, update `allow_origins` to include your production domain:
-
-```python
-allow_origins=["https://yourdomain.com"]
-```
-
----
-
-## 3. Build and run
+### 3. Build and run
 
 ```bash
-docker compose up --build -d
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-- Backend: `http://<server-ip>:8022`
-- Frontend (dev server): `http://<server-ip>:5173`
+- Site: `http://<server-ip>` (port 80)
+- Backend is internal only, not reachable from outside
 
-> **Note:** The frontend runs Vite's dev server, which is fine for low-traffic personal use.
-> For a production-grade setup, see section 5 below.
-
----
-
-## 4. Verify
+### 4. Health check
 
 ```bash
-# Check containers are running
-docker compose ps
-
-# Check backend health
-curl http://localhost:8022/
-
-# Tail logs
-docker compose logs -f
+./healthcheck.sh
 ```
 
----
+Verifies:
+- Backend API responds correctly
+- nginx serves the frontend and SPA fallback works
+- nginx proxies `/api/*` to the backend
+- CORS preflight from the production domain is accepted
+- DB was seeded and returns families
 
-## 5. Production frontend (optional but recommended)
+### 5. Logs and status
 
-Instead of running Vite's dev server, build a static bundle and serve it with nginx.
+```bash
+# Container status
+docker compose -f docker-compose.prod.yml ps
 
-Replace `frontend/Dockerfile` with:
+# Tail all logs
+docker compose -f docker-compose.prod.yml logs -f
 
-```dockerfile
-FROM node:20-slim AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+# Backend only
+docker compose -f docker-compose.prod.yml logs -f backend
 ```
 
-Update `docker-compose.yml` frontend port to `"80:80"`.
-
-Also update `vite.config.js` so the API base URL points to the backend server instead of using the dev proxy.
-
----
-
-## 6. Stop / restart
+### 6. Stop / restart
 
 ```bash
 # Stop
-docker compose down
+docker compose -f docker-compose.prod.yml down
 
-# Restart (re-seeds DB from invitation.txt)
-docker compose up -d
+# Restart without rebuilding
+docker compose -f docker-compose.prod.yml up -d
+
+# Full rebuild (after code changes)
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-> The SQLite database is ephemeral inside the container. If you need to persist RSVP data across restarts, add a volume for the DB file in `docker-compose.yml`:
->
-> ```yaml
-> volumes:
->   - ./backend/wedding.db:/app/wedding.db
-> ```
+> **DB persistence:** RSVP responses are stored in `backend/wedding.db`, which is mounted
+> as a volume in the prod compose. Data survives container restarts. The DB is re-seeded
+> from `invitation.txt` on every start, but existing RSVP responses are preserved because
+> seeding only inserts guests/families, not attendance data.
+
+### 7. HTTPS (recommended)
+
+Run a reverse proxy (Caddy or nginx) in front of port 80 on the host to terminate TLS.
+
+Example with Caddy (`/etc/caddy/Caddyfile`):
+
+```
+caterina.edoardogabrielli.com {
+    reverse_proxy localhost:80
+}
+```
+
+Caddy auto-provisions a Let's Encrypt certificate.
