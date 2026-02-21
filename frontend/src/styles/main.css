@@ -39,6 +39,9 @@
 @layer components {
   .font-script {
     font-family: 'Aniyah', cursive;
+    overflow: visible;
+    padding-top: 0.15em;
+    padding-bottom: 0.15em;
   }
 
   .font-serif {
