@@ -23,8 +23,7 @@
       </p>
 
       <h2
-        class="font-script text-forest leading-[0.85] mt-16 md:mt-24"
-        style="font-size: clamp(4rem, 8.2vw, 6.2rem);"
+        class="font-script text-forest leading-[0.85] mt-16 md:mt-24 text-[2.6rem] md:text-[clamp(4rem,8.2vw,6.2rem)]"
       >
         Tenerife
       </h2>
@@ -33,7 +32,7 @@
         <img
           :src="tenerife"
           alt="Isola di Tenerife"
-          class="w-56 sm:w-64 md:w-80 lg:w-[27rem] opacity-70 md:justify-self-start md:-translate-x-10"
+          class="w-40 sm:w-64 md:w-80 lg:w-[27rem] opacity-70 md:justify-self-start md:-translate-x-10"
         />
 
         <div class="w-full px-4 sm:px-0 md:justify-self-end md:pb-3 md:translate-x-8 md:-translate-y-6">

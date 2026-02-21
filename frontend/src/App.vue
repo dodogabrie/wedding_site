@@ -19,11 +19,17 @@ import ContributionPage from './components/ContributionPage.vue'
 import SummaryPage from './components/SummaryPage.vue'
 
 const PASSWORD = 'OscarDorotea!'
+const ACCESS_STORAGE_KEY = 'wedding_site_access_granted'
 
 function checkAccess() {
+  if (window.localStorage.getItem(ACCESS_STORAGE_KEY) === '1') {
+    return true
+  }
+
   // Magic link: /?key=OscarDorotea! or /summary?key=OscarDorotea!
   const params = new URLSearchParams(window.location.search)
   if (params.get('key') === PASSWORD) {
+    window.localStorage.setItem(ACCESS_STORAGE_KEY, '1')
     window.history.replaceState({}, '', window.location.pathname)
     return true
   }
@@ -36,6 +42,7 @@ const isSummaryRoute = computed(() => normalizedPath === '/summary')
 const unlocked = ref(checkAccess())
 
 function onUnlocked() {
+  window.localStorage.setItem(ACCESS_STORAGE_KEY, '1')
   unlocked.value = true
   window.scrollTo({ top: 0, behavior: 'instant' })
 }

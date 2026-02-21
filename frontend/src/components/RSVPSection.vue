@@ -39,7 +39,7 @@
                   autocorrect="off"
                   autocapitalize="none"
                   spellcheck="false"
-                  placeholder="Clicca per cercare il tuo nome"
+                  :placeholder="isMobile ? 'Cerca il tuo nome' : 'Clicca per cercare il tuo nome'"
                   class="w-full block bg-transparent text-forest font-serif leading-[1.35] pl-11 pr-12 py-3 border-2 border-forest/55 rounded-2xl placeholder:text-forest/55 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)] focus:outline-none focus:border-forest/80 focus:shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)] transition-colors"
                 />
                 <button
@@ -134,7 +134,7 @@
               ref="ringsContainer"
               class="relative w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-visible"
             >
-            <div class="absolute left-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none pl-2 md:pl-0">
+            <div class="absolute left-0 top-0 bottom-0 w-1/2 overflow-visible pointer-events-none pl-2 md:pl-0" style="clip-path: inset(-200% 0% -200% -200%)">
               <div
                 ref="leftTrackContainer"
                 class="absolute inset-0 pointer-events-auto"
@@ -170,7 +170,7 @@
               </div>
             </div>
 
-            <div class="absolute right-0 top-8 bottom-0 md:top-0 w-1/2 overflow-hidden pointer-events-none pr-2 md:pr-0">
+            <div class="absolute right-0 top-0 bottom-0 w-1/2 overflow-visible pointer-events-none pr-2 md:pr-0" style="clip-path: inset(-200% -200% -200% 0%)">
               <div
                 ref="rightTrackContainer"
                 class="absolute inset-0 pointer-events-auto"
@@ -565,7 +565,7 @@ function clearSelection() {
 function clearSearch() {
   inlineGuestError.value = ''
   searchQuery.value = ''
-  nextTick(() => searchInput.value?.focus())
+  nextTick(() => searchInput.value?.blur())
 }
 
 async function setSingleGuestAttendance(bubble, attending) {

@@ -1,7 +1,11 @@
 <template>
   <div class="min-h-screen bg-sage flex items-center justify-center p-6">
     <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-10 w-full max-w-sm text-center">
-      <h1 class="font-serif text-3xl text-stone-700 mb-2">Edoardo & Caterina</h1>
+      <h1 class="font-serif text-3xl text-stone-700 mb-2 leading-tight">
+        <span class="block">Edoardo</span>
+        <span class="block">&amp;</span>
+        <span class="block">Caterina</span>
+      </h1>
       <p class="text-stone-500 text-sm mb-8">Inserisci la password per accedere</p>
 
       <form @submit.prevent="submit">
@@ -28,6 +32,7 @@
 import { ref } from 'vue'
 
 const PASSWORD = 'OscarDorotea!'
+const ACCESS_STORAGE_KEY = 'wedding_site_access_granted'
 
 const emit = defineEmits(['unlocked'])
 
@@ -36,6 +41,7 @@ const error = ref(false)
 
 function submit() {
   if (password.value === PASSWORD) {
+    window.localStorage.setItem(ACCESS_STORAGE_KEY, '1')
     emit('unlocked')
   } else {
     error.value = true
