@@ -73,7 +73,6 @@
                 :style="{ opacity: dockedBubbleIds[bubble.id] ? 1 : 0 }"
               >
                 <span>{{ bubble.displayText }}</span>
-                <span v-if="bubble.type === 'family'" class="ml-1 text-[11px] opacity-70">(Apri)</span>
               </button>
             </div>
             <div
@@ -308,11 +307,11 @@ const allBubbles = computed(() => {
 
 const filteredBubbles = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
-  const hasQuery = query.length > 0
+  const hasQuery = query.replace(/\s/g, '').length >= 2
 
   return allBubbles.value.map(bubble => ({
     ...bubble,
-    matches: hasQuery && bubble.fullName.toLowerCase().startsWith(query),
+    matches: hasQuery && bubble.fullName.toLowerCase().includes(query),
     attendanceState: getBubbleAttendanceState(bubble),
     hasQuery
   }))
@@ -538,7 +537,7 @@ function selectBubble(bubble) {
 
   const normalizedQuery = searchQuery.value.toLowerCase().trim()
   const isStillMatch = normalizedQuery.length > 0 &&
-    bubble.fullName.toLowerCase().startsWith(normalizedQuery)
+    bubble.fullName.toLowerCase().includes(normalizedQuery)
 
   // Clean up flight state only when bubble is not currently a search match.
   // If still matched, keep the current visual state to avoid restart/jump.
@@ -688,7 +687,7 @@ function updateBubblePositions() {
   const bubbleElements = ringsContainer.value?.querySelectorAll('.rsvp-bubble')
   if (!bubbleElements || bubbleElements.length === 0) return
 
-  const hasQuery = searchQuery.value.trim().length > 0
+  const hasQuery = searchQuery.value.trim().replace(/\s/g, '').length >= 2
 
   if (!hasQuery) {
     bubbleElements.forEach(element => {
@@ -929,6 +928,13 @@ function flyBubbleBack(bubbleId) {
     onComplete: () => {
       clone.remove()
       gsap.set(el, { autoAlpha: 1 })
+      const visual = getBubbleVisualElement(el)
+      if (visual) {
+        gsap.set(visual, {
+          backgroundColor: '#F5F2EB',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+        })
+      }
       flyingBubbles.delete(bubbleId)
     }
   })
