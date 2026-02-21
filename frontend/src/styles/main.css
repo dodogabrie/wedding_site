@@ -40,6 +40,9 @@
   .font-script {
     font-family: 'Aniyah', cursive;
     overflow: visible;
+    line-height: 1.25;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
     padding-top: 0.15em;
     padding-bottom: 0.15em;
   }

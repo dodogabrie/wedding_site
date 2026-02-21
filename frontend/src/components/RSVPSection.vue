@@ -5,8 +5,8 @@
 
     <div class="max-w-4xl mx-auto">
       <!-- Header -->
-      <h2 ref="header" class="font-script text-forest text-4xl md:text-5xl lg:text-6xl leading-[1.2] pt-1 text-center mb-8 opacity-0">
-        Sarai presente?
+      <h2 ref="header" class="font-script block overflow-visible text-forest text-4xl md:text-5xl lg:text-6xl leading-[1.35] pt-3 pb-1 text-center mb-8 opacity-0">
+        <span class="script-glyph-safe">Sarai presente?</span>
       </h2>
 
       <!-- Loading state -->
@@ -157,11 +157,11 @@
                   data-track="left"
                   @click="selectBubble(bubble)"
                   :aria-label="bubble.fullName"
-                  class="rsvp-bubble absolute"
+                  class="rsvp-bubble absolute overflow-visible"
                   style="will-change: transform"
                 >
                   <span
-                    class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-[1.35] text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-4 md:px-4 py-2.5 rounded-full border-2 border-transparent shadow-md transition-shadow duration-200 hover:shadow-lg"
+                    class="bubble-visual block overflow-visible bg-cream text-forest font-serif text-[0.96rem] md:text-[1.2rem] leading-[1.45] text-center whitespace-normal md:whitespace-nowrap max-w-[44vw] md:max-w-none px-4.5 md:px-4 py-[0.72rem] md:py-2.5 rounded-full border-2 border-transparent shadow-md transition-shadow duration-200 hover:shadow-lg"
                     :class="{ 'yes-border': bubble.attendanceState === 'yes' }"
                   >
                     {{ bubble.displayText }}
@@ -193,11 +193,11 @@
                   data-track="right"
                   @click="selectBubble(bubble)"
                   :aria-label="bubble.fullName"
-                  class="rsvp-bubble absolute"
+                  class="rsvp-bubble absolute overflow-visible"
                   style="will-change: transform"
                 >
                   <span
-                    class="bubble-visual block bg-cream text-forest font-serif text-[1.02rem] md:text-[1.2rem] leading-[1.35] text-center whitespace-normal md:whitespace-nowrap max-w-[42vw] md:max-w-none px-4 md:px-4 py-2.5 rounded-full border-2 border-transparent shadow-md transition-shadow duration-200 hover:shadow-lg"
+                    class="bubble-visual block overflow-visible bg-cream text-forest font-serif text-[0.96rem] md:text-[1.2rem] leading-[1.45] text-center whitespace-normal md:whitespace-nowrap max-w-[44vw] md:max-w-none px-4.5 md:px-4 py-[0.72rem] md:py-2.5 rounded-full border-2 border-transparent shadow-md transition-shadow duration-200 hover:shadow-lg"
                     :class="{ 'yes-border': bubble.attendanceState === 'yes' }"
                   >
                     {{ bubble.displayText }}
@@ -1156,6 +1156,12 @@ onBeforeUnmount(() => {
   outline: 2px solid rgba(128, 157, 111, 0.85);
   outline-offset: 1px;
   filter: drop-shadow(0 0 10px rgba(128, 157, 111, 0.65));
+}
+
+.script-glyph-safe {
+  display: inline-block;
+  transform: translateY(0.08em);
+  padding-top: 0.12em;
 }
 
 @keyframes single-chip-pulse {

@@ -23,13 +23,30 @@
 
       <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mt-4 mb-1 leading-[1.25] pt-1">
         <span class="block text-center md:text-left md:mr-20">
-          <span v-for="(char, i) in 'Edoardo'" :key="'e'+i" class="inline-block opacity-0" :ref="el => { if (el) edoardoChars[i] = el }">{{ char }}</span>
+          <span class="md:hidden">Edoardo</span>
+          <span
+            v-for="(char, i) in 'Edoardo'"
+            :key="'e'+i"
+            class="hidden md:inline-block opacity-0"
+            :ref="el => { if (el) edoardoChars[i] = el }"
+          >
+            {{ char }}
+          </span>
         </span>
         <span class="block text-center text-3xl md:text-5xl py-2 md:py-4">
-          <span ref="ampersand" class="inline-block opacity-0">&</span>
+          <span class="md:hidden">&</span>
+          <span ref="ampersand" class="hidden md:inline-block opacity-0">&</span>
         </span>
         <span class="block text-center md:text-right mt-2 md:mt-4 md:ml-20">
-          <span v-for="(char, i) in 'Caterina'" :key="'c'+i" class="inline-block opacity-0" :ref="el => { if (el) caterinaChars[i] = el }">{{ char }}</span>
+          <span class="md:hidden">Caterina</span>
+          <span
+            v-for="(char, i) in 'Caterina'"
+            :key="'c'+i"
+            class="hidden md:inline-block opacity-0"
+            :ref="el => { if (el) caterinaChars[i] = el }"
+          >
+            {{ char }}
+          </span>
         </span>
       </h1>
 
