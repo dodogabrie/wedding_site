@@ -38,7 +38,6 @@
 
         <div class="w-full px-4 sm:px-0 md:justify-self-end md:pb-3 md:translate-x-8 md:-translate-y-6">
           <p class="font-serif text-forest/90 text-xl sm:text-2xl md:text-3xl italic">il nostro iban è:</p>
-          <p class="font-serif text-forest text-xl sm:text-2xl md:text-3xl mt-2">Caterina Betti Becucci</p>
           <div class="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-2 sm:gap-3 mt-2">
             <p class="font-serif text-forest text-base sm:text-lg md:text-xl lg:text-[2rem] tracking-tight sm:tracking-normal lg:tracking-wide break-all sm:break-normal">
               IT18A0306921531100000006622
@@ -73,6 +72,7 @@
               </span>
             </button>
           </div>
+          <p class="font-serif text-forest text-xl sm:text-2xl md:text-3xl mt-2">Caterina Betti Beccucci</p>
         </div>
       </div>
 

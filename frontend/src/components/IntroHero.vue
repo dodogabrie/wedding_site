@@ -1,5 +1,5 @@
 <template>
-  <section class="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
+  <section class="relative min-h-screen md:h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
     <!-- Top left corner ornament -->
     <img
       ref="cornerTopLeft"
@@ -17,40 +17,38 @@
 
     <!-- Main content -->
     <div class="text-center z-10 max-w-2xl flex-1 flex flex-col justify-center">
-      <p ref="subtitle" class="text-forest text-2xl md:text-4xl mt-5 mb-12 md:mb-24 opacity-0 font-serif italic">
+      <p ref="subtitle" class="text-forest text-2xl md:text-4xl mt-5 mb-12 md:mb-12 opacity-0 font-serif italic">
         Siamo lieti di invitarvi<br>al nostro matrimonio
       </p>
 
-      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mt-4 mb-1 leading-[1.25] pt-1">
-        <span class="block text-center md:text-left md:mr-20">
-          <span class="md:hidden">Edoardo</span>
+      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mt-4 mb-1 leading-[1.25] py-4 md:py-8">
+        <span class="block text-center">
+          <!-- mobile: whole word revealed by clip-path -->
+          <span ref="edoardoMobile" class="md:hidden">Edoardo</span>
+          <!-- desktop: per-character animation -->
           <span
             v-for="(char, i) in 'Edoardo'"
             :key="'e'+i"
             class="hidden md:inline-block opacity-0"
             :ref="el => { if (el) edoardoChars[i] = el }"
-          >
-            {{ char }}
-          </span>
+          >{{ char }}</span>
         </span>
         <span class="block text-center text-3xl md:text-5xl py-2 md:py-4">
-          <span class="md:hidden">&</span>
+          <span ref="ampersandMobile" class="md:hidden">&</span>
           <span ref="ampersand" class="hidden md:inline-block opacity-0">&</span>
         </span>
-        <span class="block text-center md:text-right mt-2 md:mt-4 md:ml-20">
-          <span class="md:hidden">Caterina</span>
+        <span class="block text-center mt-2 md:mt-4">
+          <span ref="caterinaMobile" class="md:hidden">Caterina</span>
           <span
             v-for="(char, i) in 'Caterina'"
             :key="'c'+i"
             class="hidden md:inline-block opacity-0"
             :ref="el => { if (el) caterinaChars[i] = el }"
-          >
-            {{ char }}
-          </span>
+          >{{ char }}</span>
         </span>
       </h1>
 
-      <div ref="details" class="text-forest text-xl md:text-3xl mt-12 md:mt-20 opacity-0 font-serif">
+      <div ref="details" class="text-forest text-xl md:text-3xl mt-12 md:mt-10 opacity-0 font-serif">
         <p>Domenica 26 aprile 2026, ore 11:30</p>
         <p>Sala Maggiore del Palazzo degli Anziani,</p>
         <p>Pistoia</p>
@@ -84,9 +82,13 @@ const divider = ref(null)
 const edoardoChars = ref([])
 const caterinaChars = ref([])
 const ampersand = ref(null)
+const edoardoMobile = ref(null)
+const caterinaMobile = ref(null)
+const ampersandMobile = ref(null)
 
 onMounted(() => {
   const tl = gsap.timeline({ defaults: { ease: 'power2.out' } })
+  const isMobile = window.innerWidth < 768
 
   // Animate corners
   tl.to([cornerTopLeft.value, cornerTopRight.value], {
@@ -102,38 +104,28 @@ onMounted(() => {
     duration: 0.8
   }, 0.3)
 
-  // Typewriter effect for names with fade
-  tl.fromTo(edoardoChars.value,
-    { opacity: 0, scale: 0.5, y: 20 },
-    {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      duration: 0.3,
-      stagger: 0.08,
-      ease: 'back.out(1.7)'
-    }, 0.6)
+  if (isMobile) {
+    // Clip-path left-to-right reveal — keeps cursive ligatures intact
+    const revealFrom = { clipPath: 'inset(0 100% 0 0)' }
+    const revealTo = { clipPath: 'inset(0 0% 0 0)', duration: 1.0, ease: 'power2.inOut' }
+    gsap.set([edoardoMobile.value, ampersandMobile.value, caterinaMobile.value], revealFrom)
+    tl.to(edoardoMobile.value, revealTo, 0.6)
+    tl.to(ampersandMobile.value, { ...revealTo, duration: 0.5 }, '>')
+    tl.to(caterinaMobile.value, revealTo, '>')
+  } else {
+    // Per-character bounce animation for desktop
+    tl.fromTo(edoardoChars.value,
+      { opacity: 0, scale: 0.5, y: 20 },
+      { opacity: 1, scale: 1, y: 0, duration: 0.3, stagger: 0.08, ease: 'back.out(1.7)' }, 0.6)
 
-  tl.fromTo(ampersand.value,
-    { opacity: 0, scale: 0.5, y: 20 },
-    {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      duration: 0.4,
-      ease: 'back.out(1.7)'
-    }, '>')
+    tl.fromTo(ampersand.value,
+      { opacity: 0, scale: 0.5, y: 20 },
+      { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: 'back.out(1.7)' }, '>')
 
-  tl.fromTo(caterinaChars.value,
-    { opacity: 0, scale: 0.5, y: 20 },
-    {
-      opacity: 1,
-      scale: 1,
-      y: 0,
-      duration: 0.3,
-      stagger: 0.08,
-      ease: 'back.out(1.7)'
-    }, '>')
+    tl.fromTo(caterinaChars.value,
+      { opacity: 0, scale: 0.5, y: 20 },
+      { opacity: 1, scale: 1, y: 0, duration: 0.3, stagger: 0.08, ease: 'back.out(1.7)' }, '>')
+  }
 
   tl.to(details.value, {
     opacity: 1,
@@ -145,7 +137,5 @@ onMounted(() => {
     opacity: 1,
     duration: 0.6
   }, '>')
-
-
 })
 </script>
