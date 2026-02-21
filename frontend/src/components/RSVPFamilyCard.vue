@@ -68,6 +68,7 @@ async function setGuestAttending(guest, attending) {
   loadingGuestId.value = guest.id
   try {
     const updated = await updateGuest(guest.id, { attending })
+    if (!sessionStorage.getItem('rsvp_updated')) sessionStorage.setItem('rsvp_updated', 'pending')
     emit('updated', { guestId: guest.id, guest: updated })
   } catch (error) {
     console.error('Failed to update RSVP:', error)

@@ -46,10 +46,15 @@ const emit = defineEmits(['updated'])
 const loading = ref(false)
 
 async function toggleAttending() {
+  if (sessionStorage.getItem('rsvp_updated') === 'pending') {
+    if (!window.confirm(`Stai modificando la partecipazione di ${props.guest.name}.\nClicca OK per procedere comunque.`)) return
+    sessionStorage.setItem('rsvp_updated', 'confirmed')
+  }
   loading.value = true
   try {
     const newStatus = !props.guest.attending
     const updated = await updateGuest(props.guest.id, { attending: newStatus })
+    if (!sessionStorage.getItem('rsvp_updated')) sessionStorage.setItem('rsvp_updated', 'pending')
     emit('updated', updated)
   } catch (error) {
     console.error('Failed to update RSVP:', error)

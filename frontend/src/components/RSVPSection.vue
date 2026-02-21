@@ -572,10 +572,15 @@ async function setSingleGuestAttendance(bubble, attending) {
   if (inlineGuestLoading.value) return
   if (bubble.data.attending === attending) return
 
+  if (sessionStorage.getItem('rsvp_updated') === 'pending') {
+    if (!window.confirm(`Stai modificando la partecipazione di ${bubble.data.name}.\nClicca OK per procedere comunque.`)) return
+    sessionStorage.setItem('rsvp_updated', 'confirmed')
+  }
   inlineGuestError.value = ''
   inlineGuestLoading.value = true
   try {
     const updated = await updateGuest(bubble.data.id, { attending })
+    if (!sessionStorage.getItem('rsvp_updated')) sessionStorage.setItem('rsvp_updated', 'pending')
     updateIndividual(updated)
   } catch (error) {
     inlineGuestError.value = 'Errore nel salvataggio. Riprova.'

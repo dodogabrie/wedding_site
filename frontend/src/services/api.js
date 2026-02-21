@@ -7,6 +7,13 @@ const api = axios.create({
   }
 })
 
+function maybeShowVoteWarning(headers) {
+  const warning = headers?.['x-rsvp-warning']
+  if (warning) {
+    window.alert(warning)
+  }
+}
+
 /**
  * Fetch all families with their guests.
  * @returns {Promise<Array>} List of families with nested guests
@@ -32,7 +39,8 @@ export async function getGuests() {
  * @returns {Promise<Object>} Updated guest data
  */
 export async function updateGuest(guestId, update) {
-  const { data } = await api.patch(`/guests/${guestId}`, update)
+  const { data, headers } = await api.patch(`/guests/${guestId}`, update)
+  maybeShowVoteWarning(headers)
   return data
 }
 
@@ -43,9 +51,10 @@ export async function updateGuest(guestId, update) {
  * @returns {Promise<Object>} Updated family data with guests
  */
 export async function updateFamilyGuests(familyId, guestUpdates) {
-  const { data } = await api.patch(`/families/${familyId}/guests`, {
+  const { data, headers } = await api.patch(`/families/${familyId}/guests`, {
     guest_updates: guestUpdates
   })
+  maybeShowVoteWarning(headers)
   return data
 }
 

@@ -1,10 +1,10 @@
 """RSVP API endpoints for managing guest attendance."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import Family, Guest
+from models import Family, Guest, VoteAudit
 from schemas import (
     GuestResponse,
     GuestUpdate,
@@ -14,6 +14,66 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["rsvp"])
+MULTI_GROUP_WARNING = (
+    "Perfavore, è per noi importante conoscere il numero di persone che "
+    "accettano su questa pagina, comunicaci solo la tua partecipazione"
+)
+
+
+def _get_client_ip(request: Request) -> str:
+    """Best-effort extraction of real client IP behind reverse proxies."""
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    if request.client and request.client.host:
+        return request.client.host
+
+    return "unknown"
+
+
+def _vote_scope_for_guest(guest: Guest) -> tuple[str, int]:
+    """Group guest votes by family when present, else by single guest."""
+    if guest.family_id is not None:
+        return ("family", guest.family_id)
+    return ("guest", guest.id)
+
+
+def _attach_multi_group_warning_if_needed(
+    db: Session, request: Request, response: Response, scope_type: str, scope_id: int
+) -> None:
+    """Set response header if same IP is voting across different groups."""
+    ip_address = _get_client_ip(request)
+
+    existing_other_scope = (
+        db.query(VoteAudit.id)
+        .filter(
+            VoteAudit.ip_address == ip_address,
+            (VoteAudit.scope_type != scope_type) | (VoteAudit.scope_id != scope_id),
+        )
+        .first()
+    )
+
+    if existing_other_scope:
+        response.headers["X-RSVP-Warning"] = MULTI_GROUP_WARNING
+
+
+def _record_vote_audit(
+    db: Session, request: Request, scope_type: str, scope_id: int, guest_id: int
+) -> None:
+    """Persist one audit row per vote update."""
+    db.add(
+        VoteAudit(
+            ip_address=_get_client_ip(request),
+            scope_type=scope_type,
+            scope_id=scope_id,
+            guest_id=guest_id,
+        )
+    )
 
 
 @router.get("/families", response_model=list[FamilyResponse])
@@ -43,7 +103,13 @@ def list_guests(db: Session = Depends(get_db)):
 
 
 @router.patch("/guests/{guest_id}", response_model=GuestResponse)
-def update_guest(guest_id: int, update: GuestUpdate, db: Session = Depends(get_db)):
+def update_guest(
+    guest_id: int,
+    update: GuestUpdate,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Update a guest's RSVP status.
 
     Args:
@@ -62,7 +128,22 @@ def update_guest(guest_id: int, update: GuestUpdate, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail="Guest not found")
 
     if update.attending is not None:
+        scope_type, scope_id = _vote_scope_for_guest(guest)
+        _attach_multi_group_warning_if_needed(
+            db=db,
+            request=request,
+            response=response,
+            scope_type=scope_type,
+            scope_id=scope_id,
+        )
         guest.attending = update.attending
+        _record_vote_audit(
+            db=db,
+            request=request,
+            scope_type=scope_type,
+            scope_id=scope_id,
+            guest_id=guest.id,
+        )
     if update.dietary_notes is not None:
         guest.dietary_notes = update.dietary_notes
 
@@ -73,7 +154,11 @@ def update_guest(guest_id: int, update: GuestUpdate, db: Session = Depends(get_d
 
 @router.patch("/families/{family_id}/guests", response_model=FamilyResponse)
 def update_family_guests(
-    family_id: int, update: FamilyGuestsUpdate, db: Session = Depends(get_db)
+    family_id: int,
+    update: FamilyGuestsUpdate,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
 ):
     """Bulk update attendance for all guests in a family.
 
@@ -92,12 +177,27 @@ def update_family_guests(
     if not family:
         raise HTTPException(status_code=404, detail="Family not found")
 
+    _attach_multi_group_warning_if_needed(
+        db=db,
+        request=request,
+        response=response,
+        scope_type="family",
+        scope_id=family_id,
+    )
+
     for guest_id, attending in update.guest_updates.items():
         guest = db.query(Guest).filter(
             Guest.id == guest_id, Guest.family_id == family_id
         ).first()
         if guest:
             guest.attending = attending
+            _record_vote_audit(
+                db=db,
+                request=request,
+                scope_type="family",
+                scope_id=family_id,
+                guest_id=guest.id,
+            )
 
     db.commit()
     db.refresh(family)

@@ -47,3 +47,15 @@ class Guest(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     family = relationship("Family", back_populates="guests")
+
+
+class VoteAudit(Base):
+    """Tracks RSVP updates by client IP to detect multi-group voting."""
+    __tablename__ = "vote_audits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ip_address = Column(String, nullable=False, index=True)
+    scope_type = Column(String, nullable=False)  # "family" or "guest"
+    scope_id = Column(Integer, nullable=False)
+    guest_id = Column(Integer, ForeignKey("guests.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
