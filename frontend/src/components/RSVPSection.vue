@@ -743,7 +743,8 @@ function flyBubbleOut(bubbleId) {
   if (!el) return
 
   // Keep orbit running and animate a visual clone to the chip area.
-  requestAnimationFrame(() => {
+  // nextTick ensures Vue has rendered chip elements before rAF tries to read their rects.
+  nextTick(() => requestAnimationFrame(() => {
     // Reduced-motion: instant dock without animation
     if (prefersReducedMotion.value) {
       gsap.set(el, { autoAlpha: 0 })
@@ -827,7 +828,7 @@ function flyBubbleOut(bubbleId) {
         dockedBubbleIds.value[bubbleId] = true
       }
     })
-  })
+  }))
 }
 
 /**
