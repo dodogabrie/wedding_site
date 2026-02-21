@@ -44,6 +44,6 @@ const unlocked = ref(checkAccess())
 function onUnlocked() {
   window.localStorage.setItem(ACCESS_STORAGE_KEY, '1')
   unlocked.value = true
-  window.scrollTo({ top: 0, behavior: 'instant' })
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
 }
 </script>

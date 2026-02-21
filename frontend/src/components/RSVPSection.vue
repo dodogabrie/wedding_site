@@ -1,5 +1,5 @@
 <template>
-  <section class="relative min-h-screen py-20 px-4">
+  <section ref="sectionEl" class="relative min-h-screen py-20 px-4">
     <!-- Flight overlay for animated clones -->
     <div ref="flightOverlay" class="fixed inset-0 pointer-events-none" style="z-index: 50;"></div>
 
@@ -145,7 +145,7 @@
           <div
             ref="ringsContainer"
               class="relative w-screen max-w-screen left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-x-hidden overflow-y-visible select-none touch-pan-y"
-              :class="activeRingDrag ? 'cursor-grabbing' : 'cursor-grab'"
+              :class="[activeRingDrag ? 'cursor-grabbing' : 'cursor-grab', !bubblesInteractive ? 'pointer-events-none' : '']"
               @pointerdown="onRingPointerDown"
               @pointermove="onRingPointerMove"
               @pointerup="onRingPointerUp"
@@ -254,6 +254,9 @@ const bubbleRefs = ref({})
 const flightOverlay = ref(null)
 const chipRefs = ref({})
 const searchInput = ref(null)
+const sectionEl = ref(null)
+const bubblesInteractive = ref(true)
+let removeScrollListener = null
 
 // Data source collections and UI states.
 const families = ref([])
@@ -286,7 +289,7 @@ const inlineGuestError = ref('')
 
 // Animation/layout constants for side trajectories.
 const ROTATION_DURATION = 60
-const TRAJECTORY_RADIUS_X_DESKTOP = 80
+const TRAJECTORY_RADIUS_X_DESKTOP = 90
 const TRAJECTORY_RADIUS_Y_DESKTOP = 44
 const TRAJECTORY_SIDE_OFFSET_DESKTOP = 36
 
@@ -709,9 +712,6 @@ function onRingPointerDown(event) {
   killTrackInertia(track, false)
   withTrackTweens(track, (tween) => tween.pause())
 
-  if (typeof container.setPointerCapture === 'function') {
-    container.setPointerCapture(event.pointerId)
-  }
 }
 
 function onRingPointerMove(event) {
@@ -727,6 +727,12 @@ function onRingPointerMove(event) {
   if (!drag.moved && Math.abs(deltaX) >= DRAG_START_THRESHOLD_PX) {
     drag.moved = true
     markDragHintSeen()
+    // Capture pointer only after horizontal intent is confirmed, so vertical
+    // scroll gestures are not accidentally intercepted before the threshold.
+    const cont = ringsContainer.value
+    if (cont && typeof cont.setPointerCapture === 'function') {
+      try { cont.setPointerCapture(event.pointerId) } catch (_) {}
+    }
   }
   if (!drag.moved || deltaX === 0) return
 
@@ -1291,6 +1297,16 @@ onMounted(async () => {
   }
 
   refreshRings()
+
+  const updateInteractivity = () => {
+    if (!sectionEl.value) return
+    const bottom = sectionEl.value.getBoundingClientRect().bottom
+    bubblesInteractive.value = bottom > window.innerHeight / 3
+  }
+
+  updateInteractivity()
+  window.addEventListener('scroll', updateInteractivity, { passive: true })
+  removeScrollListener = () => window.removeEventListener('scroll', updateInteractivity)
 })
 
 watch(searchQuery, () => {
@@ -1340,6 +1356,11 @@ onBeforeUnmount(() => {
   if (removeMediaListener) {
     removeMediaListener()
     removeMediaListener = null
+  }
+
+  if (removeScrollListener) {
+    removeScrollListener()
+    removeScrollListener = null
   }
 })
 </script>
