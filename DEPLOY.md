@@ -97,7 +97,29 @@ docker compose -f docker-compose.prod.yml up --build -d
 > from `invitation.txt` on every start, but existing RSVP responses are preserved because
 > seeding only inserts guests/families, not attendance data.
 
-### 7. HTTPS (recommended)
+### 7. Recreate the database
+
+Use this when you want to wipe all RSVP responses and re-seed from `invitation.txt` (e.g. after updating the guest list).
+
+```bash
+# Stop containers
+docker compose -f docker-compose.prod.yml down
+
+# Delete the database file
+rm backend/wedding.db
+
+# Start again — seed_data.py runs automatically on startup
+docker compose -f docker-compose.prod.yml up -d
+```
+
+> **Warning:** this permanently deletes all recorded RSVP responses. Back up first if needed:
+> ```bash
+> cp backend/wedding.db backend/wedding.db.bak
+> ```
+
+---
+
+### 8. HTTPS (recommended)
 
 Run a reverse proxy (Caddy or nginx) in front of port 80 on the host to terminate TLS.
 
