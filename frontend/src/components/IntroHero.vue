@@ -1,5 +1,5 @@
 <template>
-  <section class="relative min-h-screen md:h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
+  <section class="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-x-hidden">
     <!-- Top left corner ornament -->
     <img
       ref="cornerTopLeft"
@@ -21,10 +21,10 @@
         Siamo lieti di invitarvi<br>al nostro matrimonio
       </p>
 
-      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mt-4 mb-1 leading-[1.25] py-4 md:py-8">
+      <h1 ref="names" class="font-script text-forest text-4xl md:text-7xl mt-4 mb-1 leading-[1.32] pt-6 pb-4 md:py-8">
         <span class="block text-center">
           <!-- mobile: whole word revealed by clip-path -->
-          <span ref="edoardoMobile" class="md:hidden">Edoardo</span>
+          <span ref="edoardoMobile" class="md:hidden script-reveal-word">Edoardo</span>
           <!-- desktop: per-character animation -->
           <span
             v-for="(char, i) in 'Edoardo'"
@@ -34,11 +34,11 @@
           >{{ char }}</span>
         </span>
         <span class="block text-center text-3xl md:text-5xl py-2 md:py-4">
-          <span ref="ampersandMobile" class="md:hidden">&</span>
+          <span ref="ampersandMobile" class="md:hidden script-reveal-word">&</span>
           <span ref="ampersand" class="hidden md:inline-block opacity-0">&</span>
         </span>
         <span class="block text-center mt-2 md:mt-4">
-          <span ref="caterinaMobile" class="md:hidden">Caterina</span>
+          <span ref="caterinaMobile" class="md:hidden script-reveal-word">Caterina</span>
           <span
             v-for="(char, i) in 'Caterina'"
             :key="'c'+i"
@@ -106,12 +106,15 @@ onMounted(() => {
 
   if (isMobile) {
     // Clip-path left-to-right reveal — keeps cursive ligatures intact
-    const revealFrom = { clipPath: 'inset(0 100% 0 0)' }
-    const revealTo = { clipPath: 'inset(0 0% 0 0)', duration: 1.0, ease: 'power2.inOut' }
+    // Use negative top/bottom insets so tall glyph flourishes are not clipped.
+    const revealFrom = { clipPath: 'inset(-28% 100% -28% 0)' }
+    const revealTo = { clipPath: 'inset(-28% 0% -28% 0)', duration: 1.0, ease: 'power2.inOut' }
     gsap.set([edoardoMobile.value, ampersandMobile.value, caterinaMobile.value], revealFrom)
     tl.to(edoardoMobile.value, revealTo, 0.6)
     tl.to(ampersandMobile.value, { ...revealTo, duration: 0.5 }, '>')
     tl.to(caterinaMobile.value, revealTo, '>')
+    // Remove clip-path at rest to avoid any residual glyph clipping on some mobile renderers.
+    tl.set([edoardoMobile.value, ampersandMobile.value, caterinaMobile.value], { clearProps: 'clipPath' })
   } else {
     // Per-character bounce animation for desktop
     tl.fromTo(edoardoChars.value,
@@ -139,3 +142,15 @@ onMounted(() => {
   }, '>')
 })
 </script>
+
+<style scoped>
+.script-reveal-word {
+  overflow: visible;
+}
+
+@media (max-width: 767px) {
+  .script-reveal-word {
+    display: inline-block;
+  }
+}
+</style>

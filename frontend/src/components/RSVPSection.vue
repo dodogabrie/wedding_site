@@ -103,6 +103,19 @@
             </div>
           </div>
         </div>
+        <div class="mx-auto max-w-md h-7 -mt-1 mb-2 relative pointer-events-none">
+          <Transition name="fade">
+            <p
+              v-if="showDragHint"
+              class="absolute inset-0 flex items-center justify-center"
+            >
+              <span class="drag-hint-nudge flex items-center justify-center gap-2 text-forest/70 font-serif text-sm md:text-base">
+                <span class="text-base leading-none">↔</span>
+                <span>Trascina orizzontalmente</span>
+              </span>
+            </p>
+          </Transition>
+        </div>
 
         <div class="relative">
           <!-- Detail View -->
@@ -129,9 +142,14 @@
             :class="selectedItem ? 'pointer-events-none opacity-45 transition-opacity duration-300' : 'transition-opacity duration-300'"
           >
             <!-- Two clipped side tracks on both desktop and mobile. -->
-            <div
-              ref="ringsContainer"
-              class="relative w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-visible"
+          <div
+            ref="ringsContainer"
+              class="relative w-screen max-w-screen left-1/2 -translate-x-1/2 h-[68vh] min-h-[28rem] md:h-[36rem] overflow-x-hidden overflow-y-visible select-none touch-pan-y"
+              :class="activeRingDrag ? 'cursor-grabbing' : 'cursor-grab'"
+              @pointerdown="onRingPointerDown"
+              @pointermove="onRingPointerMove"
+              @pointerup="onRingPointerUp"
+              @pointercancel="onRingPointerUp"
             >
             <div class="absolute left-0 top-0 bottom-0 w-1/2 overflow-visible pointer-events-none pl-2 md:pl-0" style="clip-path: inset(-200% 0% -200% -200%)">
               <div
@@ -252,6 +270,7 @@ const isMobile = ref(false)
 // Per-bubble rotation tweens and slot metadata.
 const bubbleTweens = new Map()
 const bubbleSlots = new Map()
+const inertiaTweens = new Map()
 let rotationGeneration = 0
 let removeMediaListener = null
 
@@ -271,13 +290,20 @@ const TRAJECTORY_RADIUS_X_DESKTOP = 80
 const TRAJECTORY_RADIUS_Y_DESKTOP = 44
 const TRAJECTORY_SIDE_OFFSET_DESKTOP = 36
 
-const TRAJECTORY_RADIUS_X_MOBILE = 76
+const TRAJECTORY_RADIUS_X_MOBILE = 84
 const TRAJECTORY_RADIUS_Y_MOBILE = 82
 const TRAJECTORY_SIDE_OFFSET_MOBILE = 34
-const TRAJECTORY_CENTER_Y_MOBILE = 4
+const TRAJECTORY_CENTER_Y_MOBILE = 12
 const PATH_SAMPLES = 200
 const FLIGHT_SPEED_PX_PER_SEC = 900
 const SHOW_TRAJECTORY_DEBUG = false
+const DRAG_PROGRESS_PER_PIXEL = 0.0018
+const DRAG_START_THRESHOLD_PX = 6
+const DRAG_INERTIA_VELOCITY_THRESHOLD = 0.06
+const DRAG_INERTIA_DISTANCE_FACTOR = 0.42
+const DRAG_INERTIA_MAX_TURNS = 0.34
+const DRAG_INERTIA_MIN_DURATION = 0.35
+const DRAG_INERTIA_MAX_DURATION = 1.1
 
 const allBubbles = computed(() => {
   const bubbles = []
@@ -378,6 +404,10 @@ const trackBubbles = computed(() => {
 const leftTrackBubbles = computed(() => trackBubbles.value.left)
 const rightTrackBubbles = computed(() => trackBubbles.value.right)
 const renderedBubbles = computed(() => [...leftTrackBubbles.value, ...rightTrackBubbles.value])
+const activeRingDrag = ref(null)
+const showDragHint = ref(true)
+
+let suppressBubbleClickUntil = 0
 
 /**
  * Build a sampled ellipse path around a custom center.
@@ -520,6 +550,7 @@ function createBubbleRotationTween(bubbleId, slot, paused = false, elementOverri
 
 function killRotations() {
   rotationGeneration++
+  killAllInertia(false)
   bubbleTweens.forEach(tween => tween.kill())
   bubbleTweens.clear()
   bubbleSlots.clear()
@@ -530,6 +561,8 @@ function killRotations() {
  * Individuals get a short focus animation before switching to detail view.
  */
 function selectBubble(bubble) {
+  if (Date.now() < suppressBubbleClickUntil) return
+
   if (bubble.type === 'individual') {
     searchQuery.value = bubble.fullName
     return
@@ -565,6 +598,178 @@ function clearSearch() {
   inlineGuestError.value = ''
   searchQuery.value = ''
   nextTick(() => searchInput.value?.blur())
+}
+
+function wrap01(value) {
+  let wrapped = value % 1
+  if (wrapped < 0) wrapped += 1
+  return wrapped
+}
+
+function withTrackTweens(track, callback) {
+  bubbleSlots.forEach((slot, bubbleId) => {
+    if (slot.track !== track) return
+    const tween = bubbleTweens.get(bubbleId)
+    if (!tween) return
+    callback(tween, slot, bubbleId)
+  })
+}
+
+function markDragHintSeen() {
+  if (!showDragHint.value) return
+  showDragHint.value = false
+}
+
+function shiftTrackProgressBy(track, progressDelta) {
+  if (progressDelta === 0) return
+  withTrackTweens(track, (tween) => {
+    tween.progress(wrap01(tween.progress() + progressDelta))
+  })
+}
+
+function killTrackInertia(track, shouldResume = true) {
+  const inertiaTween = inertiaTweens.get(track)
+  if (!inertiaTween) return
+  inertiaTween.kill()
+  inertiaTweens.delete(track)
+  if (shouldResume) {
+    withTrackTweens(track, (tween) => tween.play())
+  }
+}
+
+function killAllInertia(shouldResume = true) {
+  Array.from(inertiaTweens.keys()).forEach(track => killTrackInertia(track, shouldResume))
+}
+
+function startTrackInertia(track, velocityProgressPerSec) {
+  const speed = Math.abs(velocityProgressPerSec)
+  if (prefersReducedMotion.value || speed < DRAG_INERTIA_VELOCITY_THRESHOLD) {
+    return false
+  }
+
+  const targetDelta = Math.max(
+    -DRAG_INERTIA_MAX_TURNS,
+    Math.min(DRAG_INERTIA_MAX_TURNS, velocityProgressPerSec * DRAG_INERTIA_DISTANCE_FACTOR)
+  )
+  if (targetDelta === 0) return false
+
+  const duration = Math.max(
+    DRAG_INERTIA_MIN_DURATION,
+    Math.min(
+      DRAG_INERTIA_MAX_DURATION,
+      DRAG_INERTIA_MIN_DURATION + Math.abs(targetDelta) * 1.8
+    )
+  )
+
+  killTrackInertia(track, false)
+
+  const proxy = { progress: 0 }
+  let lastProgress = 0
+
+  const tween = gsap.to(proxy, {
+    progress: targetDelta,
+    duration,
+    ease: 'power3.out',
+    overwrite: 'auto',
+    onUpdate: () => {
+      const step = proxy.progress - lastProgress
+      lastProgress = proxy.progress
+      shiftTrackProgressBy(track, step)
+    },
+    onComplete: () => {
+      inertiaTweens.delete(track)
+      withTrackTweens(track, (rotTween) => rotTween.play())
+    }
+  })
+
+  inertiaTweens.set(track, tween)
+  return true
+}
+
+function onRingPointerDown(event) {
+  if (loading.value) return
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+
+  const container = ringsContainer.value
+  if (!container) return
+
+  const rect = container.getBoundingClientRect()
+  const track = event.clientX < rect.left + rect.width / 2 ? 'left' : 'right'
+  const nowTs = event.timeStamp || performance.now()
+
+  activeRingDrag.value = {
+    pointerId: event.pointerId,
+    track,
+    lastX: event.clientX,
+    lastTs: nowTs,
+    velocityProgressPerSec: 0,
+    moved: false
+  }
+
+  killTrackInertia(track, false)
+  withTrackTweens(track, (tween) => tween.pause())
+
+  if (typeof container.setPointerCapture === 'function') {
+    container.setPointerCapture(event.pointerId)
+  }
+}
+
+function onRingPointerMove(event) {
+  const drag = activeRingDrag.value
+  if (!drag || drag.pointerId !== event.pointerId) return
+
+  const nowTs = event.timeStamp || performance.now()
+  const deltaX = event.clientX - drag.lastX
+  const deltaTimeSec = Math.max((nowTs - drag.lastTs) / 1000, 0.001)
+  drag.lastX = event.clientX
+  drag.lastTs = nowTs
+
+  if (!drag.moved && Math.abs(deltaX) >= DRAG_START_THRESHOLD_PX) {
+    drag.moved = true
+    markDragHintSeen()
+  }
+  if (!drag.moved || deltaX === 0) return
+
+  event.preventDefault()
+
+  const trackSign = drag.track === 'left' ? -1 : 1
+  const progressDelta = deltaX * DRAG_PROGRESS_PER_PIXEL * trackSign
+  const instantVelocity = progressDelta / deltaTimeSec
+  drag.velocityProgressPerSec = drag.velocityProgressPerSec * 0.65 + instantVelocity * 0.35
+  shiftTrackProgressBy(drag.track, progressDelta)
+}
+
+function onRingPointerUp(event) {
+  const drag = activeRingDrag.value
+  if (!drag || drag.pointerId !== event.pointerId) return
+
+  const container = ringsContainer.value
+  if (container && typeof container.releasePointerCapture === 'function') {
+    try {
+      container.releasePointerCapture(event.pointerId)
+    } catch (_error) {
+      // Ignore invalid release attempts.
+    }
+  }
+
+  if (drag.moved) {
+    suppressBubbleClickUntil = Date.now() + 180
+  }
+
+  const hasInertia = drag.moved && startTrackInertia(drag.track, drag.velocityProgressPerSec)
+  if (!hasInertia) {
+    withTrackTweens(drag.track, (tween) => tween.play())
+  }
+  activeRingDrag.value = null
+}
+
+function cancelRingDrag() {
+  const drag = activeRingDrag.value
+  if (drag) {
+    withTrackTweens(drag.track, (tween) => tween.play())
+  }
+  activeRingDrag.value = null
+  killAllInertia()
 }
 
 async function setSingleGuestAttendance(bubble, attending) {
@@ -1013,6 +1218,7 @@ function reconcileFlights() {
 function refreshRings() {
   if (loading.value) return
 
+  cancelRingDrag()
   killAllFlights()
 
   nextTick(() => {
@@ -1127,6 +1333,7 @@ onBeforeUnmount(() => {
   if (reconcileTimer) clearTimeout(reconcileTimer)
   staggerFlightTimers.forEach(timerId => clearTimeout(timerId))
   staggerFlightTimers.clear()
+  cancelRingDrag()
   killAllFlights()
   killRotations()
 
@@ -1162,6 +1369,10 @@ onBeforeUnmount(() => {
   animation: single-chip-pulse 1.1s ease-in-out infinite;
 }
 
+.drag-hint-nudge {
+  animation: drag-hint-nudge 2.2s ease-in-out infinite;
+}
+
 .yes-border {
   border-width: 3px;
   border-color: rgba(61, 79, 61, 0.98);
@@ -1188,6 +1399,24 @@ onBeforeUnmount(() => {
   100% {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(61, 79, 61, 0);
+  }
+}
+
+@keyframes drag-hint-nudge {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-8px);
+  }
+  50% {
+    transform: translateX(8px);
+  }
+  75% {
+    transform: translateX(-4px);
+  }
+  100% {
+    transform: translateX(0);
   }
 }
 </style>
