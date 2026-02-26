@@ -7,8 +7,12 @@ const api = axios.create({
   }
 })
 
+function getVoteWarning(headers) {
+  return headers?.['x-rsvp-warning'] || ''
+}
+
 function maybeShowVoteWarning(headers) {
-  const warning = headers?.['x-rsvp-warning']
+  const warning = getVoteWarning(headers)
   if (warning) {
     window.alert(warning)
   }
@@ -38,9 +42,15 @@ export async function getGuests() {
  * @param {Object} update - Object with attending (bool|null) and optional dietary_notes
  * @returns {Promise<Object>} Updated guest data
  */
-export async function updateGuest(guestId, update) {
+export async function updateGuest(guestId, update, options = {}) {
   const { data, headers } = await api.patch(`/guests/${guestId}`, update)
-  maybeShowVoteWarning(headers)
+  const warning = getVoteWarning(headers)
+  if (!options.suppressWarningAlert && warning) {
+    window.alert(warning)
+  }
+  if (options.returnMeta) {
+    return { data, warning, headers }
+  }
   return data
 }
 

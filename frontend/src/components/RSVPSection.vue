@@ -56,7 +56,10 @@
             </div>
           </div>
           <!-- Reserve chip area height to avoid pushing rings down when matches appear -->
-          <div class="mt-3 mx-auto max-w-md h-16 relative">
+          <div
+            class="mx-auto max-w-md relative transition-[height,margin] duration-200"
+            :class="selectedItem ? 'mt-1 h-2' : 'mt-3 h-16'"
+          >
             <div
               v-if="searchQuery.trim().length > 0 && matchingBubbles.length > 0 && !showSingleGuestActions && !showFamilyDetailExactMatch"
               class="absolute inset-0 flex flex-wrap gap-2 justify-center content-start"
@@ -75,34 +78,36 @@
                 <span>{{ bubble.displayText }}</span>
               </button>
             </div>
-            <div
-              v-if="showSingleGuestActions && singleMatchedGuestBubble"
-              class="absolute left-1/2 -translate-x-1/2 top-0 mt-1 w-full max-w-md z-20 pointer-events-none"
-            >
-              <div class="pointer-events-auto flex items-center justify-center gap-3">
-                <button
-                  class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
-                  :class="singleMatchedGuestBubble.data.attending === true ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
-                  :disabled="inlineGuestLoading"
-                  @click="setSingleGuestAttendance(singleMatchedGuestBubble, true)"
-                >
-                  ✓ Ci sarò
-                </button>
-                <button
-                  class="font-serif px-5 py-2 rounded-full border-2 transition-colors backdrop-blur-[1px]"
-                  :class="singleMatchedGuestBubble.data.attending === false ? 'bg-forest text-cream border-forest shadow-[0_0_0_2px_rgba(61,79,61,0.26),0_12px_30px_rgba(20,35,20,0.18)]' : 'bg-forest/14 text-forest border-forest/55 hover:bg-forest/20 hover:border-forest/70 shadow-[0_0_0_1px_rgba(61,79,61,0.20),0_10px_26px_rgba(20,35,20,0.14)]'"
-                  :disabled="inlineGuestLoading"
-                  @click="setSingleGuestAttendance(singleMatchedGuestBubble, false)"
-                >
-                  ✕ Non ci sarò
-                </button>
-              </div>
-              <p v-if="inlineGuestError" class="mt-2 text-center text-sm text-red-800 font-serif">
-                {{ inlineGuestError }}
-              </p>
-            </div>
           </div>
         </div>
+
+        <div class="relative min-h-[1px]">
+          <!-- Detail View: anchored directly below search/chips -->
+          <Transition name="fade">
+            <div v-if="selectedItem" ref="detailPanel" class="absolute left-1/2 -translate-x-1/2 top-0 w-full max-w-xl px-4 md:px-0 z-20">
+              <RSVPFamilyCard
+                v-if="selectedType === 'family'"
+                :family="selectedItem"
+                :show-title="!showFamilyDetailExactMatch"
+                @updated="updateFamilyGuest"
+                @saved="scrollToSearchArea"
+                @close="clearSelection"
+                class="w-full"
+              />
+
+              <RSVPCard
+                v-if="selectedType === 'individual'"
+                :guest="selectedItem"
+                @updated="updateIndividual"
+                @saved="scrollToSearchArea"
+                @completed="handleIndividualCompleted"
+                @close="clearSelection"
+                class="w-full"
+              />
+            </div>
+          </Transition>
+        </div>
+
         <div class="mx-auto max-w-md h-7 -mt-1 mb-2 relative pointer-events-none">
           <Transition name="fade">
             <p
@@ -117,27 +122,7 @@
           </Transition>
         </div>
 
-        <div class="relative">
-          <!-- Detail View -->
-          <Transition name="fade">
-            <div v-if="selectedItem" class="absolute left-1/2 -translate-x-1/2 top-0 w-full max-w-xl px-4 md:px-0 z-20">
-              <RSVPFamilyCard
-                v-if="selectedType === 'family'"
-                :family="selectedItem"
-                :show-title="!showFamilyDetailExactMatch"
-                @updated="updateFamilyGuest"
-                class="w-full"
-              />
-
-              <RSVPCard
-                v-if="selectedType === 'individual'"
-                :guest="selectedItem"
-                @updated="updateIndividual"
-                class="w-full"
-              />
-            </div>
-          </Transition>
-
+        <div class="relative mt-3">
           <div
             :class="selectedItem ? 'pointer-events-none opacity-45 transition-opacity duration-300' : 'transition-opacity duration-300'"
           >
@@ -239,6 +224,7 @@ import { MotionPathPlugin } from 'gsap/MotionPathPlugin'
 import RSVPCard from './RSVPCard.vue'
 import RSVPFamilyCard from './RSVPFamilyCard.vue'
 import { getFamilies, getGuests, updateGuest } from '../services/api'
+import { RSVP_EVENT_OPTIONS, getGuestAttendanceState, isDeclinedState } from '../constants/rsvp'
 
 gsap.registerPlugin(ScrollTrigger, MotionPathPlugin)
 gsap.config({ force3D: true })
@@ -255,6 +241,7 @@ const flightOverlay = ref(null)
 const chipRefs = ref({})
 const searchInput = ref(null)
 const sectionEl = ref(null)
+const detailPanel = ref(null)
 const bubblesInteractive = ref(true)
 let removeScrollListener = null
 
@@ -269,6 +256,7 @@ const selectedItem = ref(null)
 const selectedType = ref(null)
 const searchQuery = ref('')
 const isMobile = ref(false)
+const keepSelectionOnSearchClear = ref(false)
 
 // Per-bubble rotation tweens and slot metadata.
 const bubbleTweens = new Map()
@@ -286,6 +274,20 @@ let reconcileGeneration = 0
 const prefersReducedMotion = ref(false)
 const inlineGuestLoading = ref(false)
 const inlineGuestError = ref('')
+const inlineSingleGuestExpanded = ref(false)
+const singleGuestAttendanceState = computed(() => (
+  singleMatchedGuestBubble.value ? getGuestAttendanceState(singleMatchedGuestBubble.value.data) : null
+))
+const singleGuestOverallChoice = computed(() => {
+  const state = singleGuestAttendanceState.value
+  if (!state) return null
+  if (isDeclinedState(state)) return 'decline'
+  if (state.attend_ceremony === true || state.attend_lunch === true) return 'attend'
+  return null
+})
+const showSingleGuestEventRows = computed(() => (
+  inlineSingleGuestExpanded.value || singleGuestOverallChoice.value === 'attend'
+))
 
 // Animation/layout constants for side trajectories.
 const ROTATION_DURATION = 60
@@ -371,12 +373,7 @@ const singleMatchedGuestBubble = computed(() => {
 })
 
 const showSingleGuestActions = computed(() => {
-  const bubble = singleMatchedGuestBubble.value
-  if (!bubble) return false
-  const query = searchQuery.value.toLowerCase().trim()
-  const isExactMatch = bubble.fullName.toLowerCase() === query
-  if (!isExactMatch) return false
-  return Boolean(dockedBubbleIds.value[bubble.id])
+  return false
 })
 
 const showFamilyDetailExactMatch = computed(() => {
@@ -567,7 +564,11 @@ function selectBubble(bubble) {
   if (Date.now() < suppressBubbleClickUntil) return
 
   if (bubble.type === 'individual') {
-    searchQuery.value = bubble.fullName
+    selectedItem.value = bubble.data
+    selectedType.value = bubble.type
+    keepSelectionOnSearchClear.value = true
+    searchQuery.value = ''
+    scheduleDetailPanelScroll()
     return
   }
 
@@ -587,9 +588,33 @@ function selectBubble(bubble) {
     if (el) gsap.set(el, { autoAlpha: 1 })
   }
 
-  searchQuery.value = bubble.fullName
   selectedItem.value = bubble.data
   selectedType.value = bubble.type
+  keepSelectionOnSearchClear.value = true
+  searchQuery.value = ''
+  scheduleDetailPanelScroll()
+}
+
+function scheduleDetailPanelScroll() {
+  nextTick(() => {
+    const panel = detailPanel.value
+    if (!panel) return
+
+    const rect = panel.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (!viewportHeight) return
+
+    const desiredTop = Math.round(viewportHeight * 0.18)
+    const currentTop = rect.top
+    const delta = currentTop - desiredTop
+
+    // Avoid tiny jitter when already in a good position.
+    if (Math.abs(delta) < 24) return
+
+    const currentScrollY = window.scrollY || window.pageYOffset || 0
+    const targetTop = Math.max(0, currentScrollY + delta)
+    window.scrollTo({ top: targetTop, behavior: 'smooth' })
+  })
 }
 
 function clearSelection() {
@@ -601,6 +626,19 @@ function clearSearch() {
   inlineGuestError.value = ''
   searchQuery.value = ''
   nextTick(() => searchInput.value?.blur())
+}
+
+function scrollToSearchArea() {
+  nextTick(() => {
+    const target = searchInput.value || header.value || sectionEl.value
+    if (!target || typeof target.scrollIntoView !== 'function') return
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function handleIndividualCompleted() {
+  clearSelection()
+  clearSearch()
 }
 
 function wrap01(value) {
@@ -778,19 +816,72 @@ function cancelRingDrag() {
   killAllInertia()
 }
 
-async function setSingleGuestAttendance(bubble, attending) {
+async function setSingleGuestEventAttendance(bubble, field, value) {
   if (!bubble || bubble.type !== 'individual') return
   if (inlineGuestLoading.value) return
-  if (bubble.data.attending === attending) return
+  if (getGuestAttendanceState(bubble.data)[field] === value) return
 
   if (sessionStorage.getItem('rsvp_updated') === 'pending') {
     if (!window.confirm(`Stai modificando la partecipazione di ${bubble.data.name}.\nClicca OK per procedere comunque.`)) return
     sessionStorage.setItem('rsvp_updated', 'confirmed')
   }
+  if (value === true) inlineSingleGuestExpanded.value = true
   inlineGuestError.value = ''
   inlineGuestLoading.value = true
   try {
-    const updated = await updateGuest(bubble.data.id, { attending })
+    const updated = await updateGuest(bubble.data.id, { [field]: value })
+    if (!sessionStorage.getItem('rsvp_updated')) sessionStorage.setItem('rsvp_updated', 'pending')
+    updateIndividual(updated)
+  } catch (error) {
+    inlineGuestError.value = 'Errore nel salvataggio. Riprova.'
+    console.error('Failed to update RSVP inline:', error)
+  } finally {
+    inlineGuestLoading.value = false
+  }
+}
+
+async function acceptSingleGuest(bubble) {
+  if (!bubble || bubble.type !== 'individual') return
+  if (inlineGuestLoading.value) return
+  const state = getGuestAttendanceState(bubble.data)
+  if (state.attend_ceremony === true && state.attend_lunch === true) {
+    inlineSingleGuestExpanded.value = true
+    return
+  }
+
+  if (sessionStorage.getItem('rsvp_updated') === 'pending') {
+    if (!window.confirm(`Stai modificando la partecipazione di ${bubble.data.name}.\nClicca OK per procedere comunque.`)) return
+    sessionStorage.setItem('rsvp_updated', 'confirmed')
+  }
+  inlineSingleGuestExpanded.value = true
+  inlineGuestError.value = ''
+  inlineGuestLoading.value = true
+  try {
+    const updated = await updateGuest(bubble.data.id, { attend_ceremony: true, attend_lunch: true })
+    if (!sessionStorage.getItem('rsvp_updated')) sessionStorage.setItem('rsvp_updated', 'pending')
+    updateIndividual(updated)
+  } catch (error) {
+    inlineGuestError.value = 'Errore nel salvataggio. Riprova.'
+    console.error('Failed to update RSVP inline:', error)
+  } finally {
+    inlineGuestLoading.value = false
+  }
+}
+
+async function declineSingleGuest(bubble) {
+  if (!bubble || bubble.type !== 'individual') return
+  if (inlineGuestLoading.value) return
+  if (isDeclinedState(getGuestAttendanceState(bubble.data))) return
+
+  if (sessionStorage.getItem('rsvp_updated') === 'pending') {
+    if (!window.confirm(`Stai modificando la partecipazione di ${bubble.data.name}.\nClicca OK per procedere comunque.`)) return
+    sessionStorage.setItem('rsvp_updated', 'confirmed')
+  }
+  inlineSingleGuestExpanded.value = false
+  inlineGuestError.value = ''
+  inlineGuestLoading.value = true
+  try {
+    const updated = await updateGuest(bubble.data.id, { attend_ceremony: false, attend_lunch: false })
     if (!sessionStorage.getItem('rsvp_updated')) sessionStorage.setItem('rsvp_updated', 'pending')
     updateIndividual(updated)
   } catch (error) {
@@ -1312,15 +1403,20 @@ onMounted(async () => {
 watch(searchQuery, () => {
   if (loading.value) return
   inlineGuestError.value = ''
+  inlineSingleGuestExpanded.value = false
 
   const normalizedQuery = searchQuery.value.toLowerCase().trim()
   if (selectedItem.value) {
+    if (keepSelectionOnSearchClear.value && normalizedQuery === '') {
+      keepSelectionOnSearchClear.value = false
+    } else {
     const selectedLabel = selectedType.value === 'family'
       ? selectedItem.value?.family_name
       : selectedItem.value?.name
 
-    if (!selectedLabel || normalizedQuery !== selectedLabel.toLowerCase()) {
-      clearSelection()
+      if (!selectedLabel || normalizedQuery !== selectedLabel.toLowerCase()) {
+        clearSelection()
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 """SQLAlchemy database models for the wedding RSVP system."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
 from db import Base
@@ -33,7 +33,11 @@ class Guest(Base):
         name: Guest's full name
         family_id: Foreign key to family (nullable for individual guests)
         attending: True=attending, False=not attending, None=not responded
-        dietary_notes: Optional dietary restrictions or notes
+        attendance_choice: Legacy 3-state RSVP response (kept for compatibility)
+        attend_ceremony: Per-event RSVP for ceremony
+        attend_lunch: Per-event RSVP for lunch
+        allergens: Optional list of allergens/intolerances selected by the guest
+        dietary_notes: Optional dietary restrictions or notes (legacy free text)
         updated_at: Last time the RSVP was updated
         family: Relationship to the Family model
     """
@@ -43,6 +47,10 @@ class Guest(Base):
     name = Column(String, nullable=False)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=True)
     attending = Column(Boolean, nullable=True, default=None)
+    attendance_choice = Column(String, nullable=True, default=None)
+    attend_ceremony = Column(Boolean, nullable=True, default=None)
+    attend_lunch = Column(Boolean, nullable=True, default=None)
+    allergens = Column(JSON, nullable=True, default=list)
     dietary_notes = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -56,7 +56,7 @@
   }
 
   .card-individual {
-    @apply bg-cream rounded-full px-6 py-3 shadow-md;
+    @apply bg-cream rounded-lg shadow-md p-4;
   }
 }
 

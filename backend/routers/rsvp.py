@@ -20,6 +20,62 @@ MULTI_GROUP_WARNING = (
 )
 
 
+def _sync_legacy_attendance_fields(guest: Guest) -> None:
+    """Derive legacy fields from per-event booleans."""
+    ceremony = guest.attend_ceremony
+    lunch = guest.attend_lunch
+
+    if ceremony is True or lunch is True:
+        guest.attending = True
+    elif ceremony is False and lunch is False:
+        guest.attending = False
+    else:
+        guest.attending = None
+
+    # Legacy single-choice field cannot represent "both"; keep a best-effort value.
+    if ceremony is False and lunch is False:
+        guest.attendance_choice = "decline"
+    elif ceremony is True and lunch is not True:
+        guest.attendance_choice = "ceremony"
+    elif lunch is True and ceremony is not True:
+        guest.attendance_choice = "lunch"
+    else:
+        guest.attendance_choice = None
+
+
+def _apply_attendance_flags(
+    guest: Guest, attend_ceremony: bool | None, attend_lunch: bool | None
+) -> None:
+    """Apply per-event RSVP values and sync legacy compatibility fields."""
+    guest.attend_ceremony = attend_ceremony
+    guest.attend_lunch = attend_lunch
+    _sync_legacy_attendance_fields(guest)
+
+
+def _flags_from_attendance_choice(choice: str | None) -> tuple[bool | None, bool | None]:
+    """Map legacy exclusive choice to per-event flags."""
+    if choice is None:
+        return (None, None)
+    if choice == "ceremony":
+        return (True, False)
+    if choice == "lunch":
+        return (False, True)
+    if choice == "decline":
+        return (False, False)
+    return (None, None)
+
+
+def _flags_from_legacy_attending(attending: bool | None) -> tuple[bool | None, bool | None]:
+    """Map old single boolean payloads to per-event flags."""
+    if attending is None:
+        return (None, None)
+    if attending is True:
+        # Historical payloads did not distinguish event; keep ceremony as accepted
+        # and lunch unresolved to avoid inventing data.
+        return (True, None)
+    return (False, False)
+
+
 def _get_client_ip(request: Request) -> str:
     """Best-effort extraction of real client IP behind reverse proxies."""
     forwarded_for = request.headers.get("x-forwarded-for")
@@ -127,7 +183,13 @@ def update_guest(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
 
-    if update.attending is not None:
+    updated_fields = update.model_fields_set
+
+    attendance_fields_present = bool(
+        {"attend_ceremony", "attend_lunch", "attendance_choice", "attending"} & updated_fields
+    )
+
+    if attendance_fields_present:
         scope_type, scope_id = _vote_scope_for_guest(guest)
         _attach_multi_group_warning_if_needed(
             db=db,
@@ -136,7 +198,20 @@ def update_guest(
             scope_type=scope_type,
             scope_id=scope_id,
         )
-        guest.attending = update.attending
+        next_ceremony = guest.attend_ceremony
+        next_lunch = guest.attend_lunch
+
+        if "attend_ceremony" in updated_fields:
+            next_ceremony = update.attend_ceremony
+        if "attend_lunch" in updated_fields:
+            next_lunch = update.attend_lunch
+
+        if "attendance_choice" in updated_fields:
+            next_ceremony, next_lunch = _flags_from_attendance_choice(update.attendance_choice)
+        elif "attending" in updated_fields and "attend_ceremony" not in updated_fields and "attend_lunch" not in updated_fields:
+            next_ceremony, next_lunch = _flags_from_legacy_attending(update.attending)
+
+        _apply_attendance_flags(guest, next_ceremony, next_lunch)
         _record_vote_audit(
             db=db,
             request=request,
@@ -144,7 +219,9 @@ def update_guest(
             scope_id=scope_id,
             guest_id=guest.id,
         )
-    if update.dietary_notes is not None:
+    if "allergens" in updated_fields:
+        guest.allergens = update.allergens or []
+    if "dietary_notes" in updated_fields:
         guest.dietary_notes = update.dietary_notes
 
     db.commit()
@@ -185,12 +262,17 @@ def update_family_guests(
         scope_id=family_id,
     )
 
-    for guest_id, attending in update.guest_updates.items():
+    for guest_id, attendance_value in update.guest_updates.items():
         guest = db.query(Guest).filter(
             Guest.id == guest_id, Guest.family_id == family_id
         ).first()
         if guest:
-            guest.attending = attending
+            if isinstance(attendance_value, str) or attendance_value is None:
+                ceremony, lunch = _flags_from_attendance_choice(attendance_value)
+                _apply_attendance_flags(guest, ceremony, lunch)
+            else:
+                ceremony, lunch = _flags_from_legacy_attending(attendance_value)
+                _apply_attendance_flags(guest, ceremony, lunch)
             _record_vote_audit(
                 db=db,
                 request=request,
