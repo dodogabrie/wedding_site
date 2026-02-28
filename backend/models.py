@@ -52,9 +52,37 @@ class Guest(Base):
     attend_lunch = Column(Boolean, nullable=True, default=None)
     allergens = Column(JSON, nullable=True, default=list)
     dietary_notes = Column(String, nullable=True)
+    admin_notes = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     family = relationship("Family", back_populates="guests")
+
+
+class Photo(Base):
+    """Represents a photo uploaded to the wedding gallery.
+
+    Attributes:
+        id: UUID4 hex used as filename
+        original_filename: Name of the file as uploaded
+        uploader_name: Optional name of the person who uploaded
+        caption: Optional caption for the photo
+        mime_type: MIME type of the original upload
+        file_size: Size of the processed file in bytes
+        width: Width of the processed image in pixels
+        height: Height of the processed image in pixels
+        created_at: Timestamp when the photo was uploaded
+    """
+    __tablename__ = "photos"
+
+    id = Column(String, primary_key=True)
+    original_filename = Column(String, nullable=False)
+    uploader_name = Column(String, nullable=True)
+    caption = Column(String, nullable=True)
+    mime_type = Column(String, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class VoteAudit(Base):

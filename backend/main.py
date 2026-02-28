@@ -2,10 +2,12 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
 from db import engine, Base
-from routers import rsvp
+from image_utils import ensure_dirs as ensure_photo_dirs
+from routers import rsvp, photos, admin
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -39,6 +41,7 @@ def ensure_guest_columns():
 
 
 ensure_guest_columns()
+ensure_photo_dirs()
 
 app = FastAPI(title="Wedding RSVP API", version="1.0.0")
 
@@ -58,6 +61,11 @@ app.add_middleware(
 
 # Include routers
 app.include_router(rsvp.router)
+app.include_router(photos.router)
+app.include_router(admin.router)
+
+# Serve uploaded photos directly (used in dev; nginx serves them in prod)
+app.mount("/photos", StaticFiles(directory="/data/photos"), name="photos")
 
 
 @app.get("/")

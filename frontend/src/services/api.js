@@ -77,4 +77,67 @@ export async function getStats() {
   return data
 }
 
+/**
+ * Admin API methods
+ */
+const adminHeaders = () => ({
+  'X-Admin-Password': sessionStorage.getItem('admin_password')
+})
+
+export const adminApi = {
+  /**
+   * Get all families and individual guests with full details.
+   */
+  getData: async () => {
+    const { data } = await api.get('/admin/data', { headers: adminHeaders() })
+    return data
+  },
+
+  /**
+   * Administratively update a guest's details.
+   */
+  updateGuest: async (guestId, update) => {
+    const { data } = await api.patch(`/admin/guests/${guestId}`, update, { headers: adminHeaders() })
+    return data
+  },
+
+  /**
+   * Create a new guest.
+   */
+  createGuest: async (guestData) => {
+    const { data } = await api.post('/admin/guests', guestData, { headers: adminHeaders() })
+    return data
+  },
+
+  /**
+   * Remove a guest from the list.
+   */
+  deleteGuest: async (guestId) => {
+    await api.delete(`/admin/guests/${guestId}`, { headers: adminHeaders() })
+  },
+
+  /**
+   * Create a new family group.
+   */
+  createFamily: async (familyData) => {
+    const { data } = await api.post('/admin/families', familyData, { headers: adminHeaders() })
+    return data
+  },
+
+  /**
+   * Update family details.
+   */
+  updateFamily: async (familyId, update) => {
+    const { data } = await api.patch(`/admin/families/${familyId}`, update, { headers: adminHeaders() })
+    return data
+  },
+
+  /**
+   * Delete a family group.
+   */
+  deleteFamily: async (familyId) => {
+    await api.delete(`/admin/families/${familyId}`, { headers: adminHeaders() })
+  }
+}
+
 export default api

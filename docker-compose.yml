@@ -1,14 +1,30 @@
 services:
   backend:
     build: ./backend
-    ports:
-      - "8022:8022"
+    expose:
+      - "8022"
     volumes:
       - ./data:/data
+      - ./backend:/app
+    command: ["sh", "-c", "python seed_data.py && uvicorn main:app --host 0.0.0.0 --port 8022 --reload"]
 
   frontend:
     build: ./frontend
-    ports:
-      - "5173:5173"
+    expose:
+      - "5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "5180:80"
+    volumes:
+      - ./frontend/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/photos:/data/photos:ro
+    depends_on:
+      - backend
+      - frontend

@@ -76,6 +76,15 @@
       </div>
 
       <p class="font-serif text-forest text-2xl sm:text-3xl md:text-4xl italic mt-8">Grazie di cuore!</p>
+
+      <div class="mt-8">
+        <a
+          href="/gallery"
+          class="inline-block px-6 py-3 bg-forest text-cream font-serif text-lg rounded-xl hover:opacity-90 transition-opacity"
+        >
+          Galleria Foto
+        </a>
+      </div>
     </div>
   </section>
 </template>

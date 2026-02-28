@@ -51,6 +51,11 @@ class GuestResponse(GuestBase):
         from_attributes = True
 
 
+class AdminGuestResponse(GuestResponse):
+    """Schema for guest responses in admin context, including internal notes."""
+    admin_notes: str | None = None
+
+
 class GuestUpdate(BaseModel):
     """Schema for updating a guest's RSVP.
 
@@ -117,6 +122,51 @@ class FamilyGuestsUpdate(BaseModel):
     guest_updates: dict[int, bool | str | None]
 
 
+class PhotoResponse(BaseModel):
+    """Schema for a single photo response.
+
+    Attributes:
+        id: Photo UUID
+        original_filename: Original upload filename
+        uploader_name: Name of uploader (if provided)
+        caption: Photo caption (if provided)
+        width: Image width in pixels
+        height: Image height in pixels
+        thumb_url: URL to the thumbnail image
+        full_url: URL to the full-size image
+        created_at: Upload timestamp
+    """
+    id: str
+    original_filename: str
+    uploader_name: str | None
+    caption: str | None
+    width: int | None
+    height: int | None
+    thumb_url: str
+    full_url: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PhotoListResponse(BaseModel):
+    """Paginated list of photos.
+
+    Attributes:
+        photos: List of photo objects
+        total: Total number of photos
+        page: Current page number
+        per_page: Items per page
+        total_pages: Total number of pages
+    """
+    photos: list[PhotoResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
 class RSVPStats(BaseModel):
     """Schema for RSVP statistics.
 
@@ -130,3 +180,30 @@ class RSVPStats(BaseModel):
     confirmed: int
     declined: int
     pending: int
+
+
+class AdminGuestUpdate(GuestUpdate):
+    """Schema for administrative updates to a guest."""
+    name: str | None = None
+    family_id: int | None = None
+    admin_notes: str | None = None
+
+
+class AdminFamilyResponse(FamilyBase):
+    """Schema for family responses in admin context with nested guests including admin notes."""
+    id: int
+    guests: list[AdminGuestResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class AdminFamilyUpdate(BaseModel):
+    """Schema for administrative updates to a family."""
+    family_name: str | None = None
+
+
+class AdminDataResponse(BaseModel):
+    """Consolidated view of all data for the admin dashboard."""
+    families: list[AdminFamilyResponse]
+    individuals: list[AdminGuestResponse]

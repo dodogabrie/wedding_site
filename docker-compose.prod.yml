@@ -14,6 +14,8 @@ services:
       dockerfile: Dockerfile.prod
     ports:
       - "8080:80"
+    volumes:
+      - ./data/photos:/data/photos:ro
     depends_on:
       - backend
     restart: unless-stopped
