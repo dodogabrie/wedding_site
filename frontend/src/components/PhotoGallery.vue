@@ -208,44 +208,36 @@
       >
         <!-- Sliding image strip (behind controls) -->
         <div
+          ref="lbViewportEl"
           class="absolute inset-0 z-0 overflow-hidden"
           @click.self="closeLightbox"
           @touchstart.passive="onLbTouchStart"
           @touchmove.prevent="onLbTouchMove"
           @touchend.passive="onLbTouchEnd"
+          @touchcancel="onLbTouchCancel"
         >
           <div
-            ref="lbStripEl"
-            class="lightbox-strip absolute inset-0"
+            class="lightbox-track absolute inset-0"
             :class="{ 'lightbox-animating': lbAnimating }"
-            :style="{ transform: `translateX(${lbOffsetX}px)` }"
-            @transitionend="onStripTransitionEnd"
+            :style="lightboxTrackStyle"
+            @transitionend="onLightboxTrackTransitionEnd"
           >
-            <!-- Prev image -->
-            <div class="lightbox-slide" style="left: -100vw">
+            <div
+              v-for="slide in visibleLightboxSlides"
+              :key="`lb-${slide.photo.id}`"
+              class="lightbox-slide"
+              :style="lightboxSlideStyle"
+            >
               <img
-                v-if="lightboxIndex > 0"
-                :src="photos[lightboxIndex - 1].full_url"
-                :alt="photos[lightboxIndex - 1].caption || 'Wedding photo'"
-                class="max-h-[85vh] max-w-[95vw] object-contain select-none pointer-events-none"
-              />
-            </div>
-            <!-- Current image -->
-            <div class="lightbox-slide" style="left: 0" @click.self="closeLightbox">
-              <img
-                :src="lightboxPhoto.full_url"
-                :alt="lightboxPhoto.caption || 'Wedding photo'"
+                :src="slide.photo.full_url"
+                :alt="slide.photo.caption || 'Wedding photo'"
                 class="max-h-[85vh] max-w-[95vw] object-contain select-none"
+                :class="{
+                  'pointer-events-none': slide.index !== lightboxIndex,
+                  'lightbox-media-animating': lbOverlayAnimating,
+                }"
+                :style="lightboxMediaStyle"
                 @click.stop
-              />
-            </div>
-            <!-- Next image -->
-            <div class="lightbox-slide" style="left: 100vw">
-              <img
-                v-if="lightboxIndex < photos.length - 1"
-                :src="photos[lightboxIndex + 1].full_url"
-                :alt="photos[lightboxIndex + 1].caption || 'Wedding photo'"
-                class="max-h-[85vh] max-w-[95vw] object-contain select-none pointer-events-none"
               />
             </div>
           </div>
@@ -319,6 +311,7 @@ import { getPhotos, uploadPhoto } from '../services/photoApi.js'
 const STORAGE_KEY = 'wedding_gallery_uploader_name'
 const PER_PAGE = 20
 const MARQUEE_MAX = 20
+const LIGHTBOX_WINDOW_RADIUS = 3
 
 // Upload state
 const uploaderName = ref(localStorage.getItem(STORAGE_KEY) || '')
@@ -373,16 +366,127 @@ let lastDragX = 0
 let lastDragTime = 0
 
 // Lightbox state
-const lightboxPhoto = ref(null)
 const lightboxIndex = ref(-1)
-const lbStripEl = ref(null)
-const lbOffsetX = ref(0) // live drag offset; 0 = centered on current
-const lbAnimating = ref(false) // true during slide transition
+const lbViewportEl = ref(null)
+const lbTrackOffsetX = ref(0)
+const lbAnimating = ref(false)
+const lbOverlayOffsetY = ref(0)
+const lbOverlayAnimating = ref(false)
 let lbTouchStartX = 0
 let lbTouchStartY = 0
 let lbTouchDeltaX = 0
-let lbLocked = false // axis lock: once vertical swipe detected, ignore horizontal
-let lbSlideTarget = null // pending index to swap to after transition
+let lbTouchDeltaY = 0
+let lbGestureAxis = null
+let lbTargetIndex = null
+
+const lightboxPhoto = computed(() => {
+  if (lightboxIndex.value < 0) return null
+  return photos.value[lightboxIndex.value] || null
+})
+
+const lightboxTrackStyle = computed(() => {
+  const width = getLightboxViewportWidth()
+  const baseX = lightboxIndex.value < 0 ? 0 : -(lightboxIndex.value - lightboxWindowStart.value) * width
+  return {
+    width: `${visibleLightboxSlides.value.length * width}px`,
+    transform: `translate3d(${baseX + lbTrackOffsetX.value}px, 0, 0)`,
+  }
+})
+
+const lightboxSlideStyle = computed(() => {
+  const width = getLightboxViewportWidth()
+  return {
+    width: `${width}px`,
+  }
+})
+
+const lightboxWindowStart = computed(() => {
+  if (lightboxIndex.value < 0) return 0
+  const anchor = lbTargetIndex ?? lightboxIndex.value
+  return Math.max(0, Math.min(lightboxIndex.value, anchor) - LIGHTBOX_WINDOW_RADIUS)
+})
+
+const lightboxWindowEnd = computed(() => {
+  if (lightboxIndex.value < 0) return -1
+  const anchor = lbTargetIndex ?? lightboxIndex.value
+  return Math.min(
+    photos.value.length - 1,
+    Math.max(lightboxIndex.value, anchor) + LIGHTBOX_WINDOW_RADIUS
+  )
+})
+
+const visibleLightboxSlides = computed(() => {
+  if (lightboxIndex.value < 0) return []
+  const slides = []
+  for (let index = lightboxWindowStart.value; index <= lightboxWindowEnd.value; index += 1) {
+    slides.push({ index, photo: photos.value[index] })
+  }
+  return slides
+})
+
+const lightboxMediaStyle = computed(() => {
+  const height = lbViewportEl.value?.clientHeight || window.innerHeight || 1
+  const progress = Math.min(Math.abs(lbOverlayOffsetY.value) / (height * 0.45), 1)
+  const scale = 1 - progress * 0.72
+  const radius = progress * 28
+
+  return {
+    transform: `scale(${Math.max(scale, 0.28)})`,
+    borderRadius: `${radius}px`,
+  }
+})
+
+const preloadedLightboxUrls = new Set()
+const pendingLightboxPreloads = new Map()
+
+function ensureLightboxImagePreloaded(url) {
+  if (!url) return Promise.resolve()
+  if (preloadedLightboxUrls.has(url)) return Promise.resolve()
+  if (pendingLightboxPreloads.has(url)) return pendingLightboxPreloads.get(url)
+
+  const task = new Promise((resolve) => {
+    const img = new Image()
+    img.decoding = 'async'
+    const finish = () => {
+      preloadedLightboxUrls.add(url)
+      pendingLightboxPreloads.delete(url)
+      resolve()
+    }
+    img.onload = async () => {
+      try {
+        if (typeof img.decode === 'function') {
+          await img.decode()
+        }
+      } catch {
+        // If decode fails, continue; onload already guarantees data is available.
+      }
+      finish()
+    }
+    img.onerror = () => {
+      pendingLightboxPreloads.delete(url)
+      resolve()
+    }
+    img.src = url
+  })
+
+  pendingLightboxPreloads.set(url, task)
+  return task
+}
+
+function preloadNearbyLightboxPhotos(index) {
+  if (index < 0) return
+
+  const nearbyUrls = [
+    photos.value[index - 1]?.full_url,
+    photos.value[index]?.full_url,
+    photos.value[index + 1]?.full_url,
+    photos.value[index + 2]?.full_url,
+  ]
+
+  for (const url of nearbyUrls) {
+    ensureLightboxImagePreloaded(url)
+  }
+}
 
 // Debounced search watcher
 watch(searchInput, (val) => {
@@ -589,17 +693,22 @@ function loadMore() {
 // Lightbox
 function openLightbox(photo) {
   lightboxIndex.value = photos.value.indexOf(photo)
-  lightboxPhoto.value = photo
-  lbOffsetX.value = 0
+  lbTrackOffsetX.value = 0
   lbAnimating.value = false
+  lbOverlayOffsetY.value = 0
+  lbOverlayAnimating.value = false
+  lbTargetIndex = null
+  preloadNearbyLightboxPhotos(lightboxIndex.value)
   document.body.style.overflow = 'hidden'
 }
 
 function closeLightbox() {
-  lightboxPhoto.value = null
   lightboxIndex.value = -1
-  lbOffsetX.value = 0
+  lbTrackOffsetX.value = 0
   lbAnimating.value = false
+  lbOverlayOffsetY.value = 0
+  lbOverlayAnimating.value = false
+  lbTargetIndex = null
   document.body.style.overflow = ''
 }
 
@@ -635,40 +744,91 @@ async function sharePhoto() {
 
 function setLightboxByIndex(idx) {
   lightboxIndex.value = idx
-  lightboxPhoto.value = photos.value[idx]
 }
 
-function onStripTransitionEnd() {
-  if (lbSlideTarget === null) return
-  const idx = lbSlideTarget
-  lbSlideTarget = null
+function getLightboxViewportWidth() {
+  return lbViewportEl.value?.clientWidth || window.innerWidth
+}
 
-  // 1. Remove transition class
+function resetLightboxTrack() {
+  lbTrackOffsetX.value = 0
+  lbTargetIndex = null
+}
+
+function animateOverlayBack() {
+  if (lbOverlayOffsetY.value === 0) {
+    lbOverlayAnimating.value = false
+    return
+  }
+
+  lbOverlayAnimating.value = true
+  lbOverlayOffsetY.value = 0
+  window.setTimeout(() => {
+    lbOverlayAnimating.value = false
+  }, 220)
+}
+
+function dismissLightboxWithGesture() {
+  const height = lbViewportEl.value?.clientHeight || window.innerHeight || 1
+  const direction = lbTouchDeltaY >= 0 ? 1 : -1
+
+  lbOverlayAnimating.value = true
+  lbOverlayOffsetY.value = direction * Math.min(height * 0.32, 220)
+
+  window.setTimeout(() => {
+    closeLightbox()
+  }, 220)
+}
+
+function getLightboxTargetIndex(dir) {
+  const targetIndex = lightboxIndex.value + dir
+  if (targetIndex < 0 || targetIndex >= photos.value.length) return null
+  return targetIndex
+}
+
+function animateTrackTo(offset, targetIndex = null) {
+  lbTargetIndex = targetIndex
+  lbAnimating.value = true
+  lbTrackOffsetX.value = offset
+}
+
+function onLightboxTrackTransitionEnd() {
+  if (!lbAnimating.value) return
+
   lbAnimating.value = false
-
-  // 2. Force browser to commit the style change (transition removal)
-  //    by reading a layout property synchronously
-  lbStripEl.value?.offsetHeight
-
-  // 3. Now swap photo + reset offset — guaranteed no transition
-  setLightboxByIndex(idx)
-  lbOffsetX.value = 0
+  if (lbTargetIndex !== null) {
+    setLightboxByIndex(lbTargetIndex)
+  }
+  resetLightboxTrack()
 }
 
 function slideToPhoto(dir) {
-  const newIndex = lightboxIndex.value + dir
-  if (newIndex < 0 || newIndex >= photos.value.length) {
-    // Bounce back
-    lbAnimating.value = true
-    lbOffsetX.value = 0
-    lbSlideTarget = null
-    setTimeout(() => { lbAnimating.value = false }, 300)
+  if (lbAnimating.value || lbOverlayAnimating.value || lbOverlayOffsetY.value !== 0 || !lightboxPhoto.value) return
+  const targetIndex = getLightboxTargetIndex(dir)
+  if (targetIndex === null) {
+    if (lbTrackOffsetX.value !== 0) {
+      animateTrackTo(0)
+    }
     return
   }
-  // Store target and animate
-  lbSlideTarget = newIndex
-  lbAnimating.value = true
-  lbOffsetX.value = -dir * window.innerWidth
+
+  preloadNearbyLightboxPhotos(targetIndex)
+  animateTrackTo(-dir * getLightboxViewportWidth(), targetIndex)
+}
+
+function updateLightboxDrag(dx) {
+  const atStart = lightboxIndex.value === 0 && dx > 0
+  const atEnd = lightboxIndex.value === photos.value.length - 1 && dx < 0
+  lbTargetIndex = null
+  lbTrackOffsetX.value = (atStart || atEnd) ? dx * 0.3 : dx
+}
+
+function finishCancelledDrag() {
+  if (lbTrackOffsetX.value === 0) {
+    resetLightboxTrack()
+    return
+  }
+  animateTrackTo(0)
 }
 
 function onKeydown(e) {
@@ -679,45 +839,78 @@ function onKeydown(e) {
 }
 
 function onLbTouchStart(e) {
-  if (lbAnimating.value) return
+  if (lbAnimating.value || lbOverlayAnimating.value) return
   lbTouchStartX = e.touches[0].clientX
   lbTouchStartY = e.touches[0].clientY
   lbTouchDeltaX = 0
-  lbLocked = false
+  lbTouchDeltaY = 0
+  lbGestureAxis = null
 }
 
 function onLbTouchMove(e) {
-  if (lbAnimating.value) return
+  if (lbAnimating.value || lbOverlayAnimating.value) return
   const dx = e.touches[0].clientX - lbTouchStartX
   const dy = e.touches[0].clientY - lbTouchStartY
 
-  // Axis lock on first significant movement
-  if (!lbLocked && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
-    lbLocked = true
+  if (!lbGestureAxis) {
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      lbGestureAxis = 'y'
+    } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+      lbGestureAxis = 'x'
+    }
   }
-  if (lbLocked) return
 
-  lbTouchDeltaX = dx
+  if (lbGestureAxis === 'y') {
+    lbTouchDeltaY = dy
+    lbOverlayOffsetY.value = dy
+    return
+  }
 
-  // Apply resistance at edges (no prev / no next)
-  const atStart = lightboxIndex.value === 0 && dx > 0
-  const atEnd = lightboxIndex.value === photos.value.length - 1 && dx < 0
-  lbOffsetX.value = (atStart || atEnd) ? dx * 0.3 : dx
+  if (lbGestureAxis === 'x') {
+    lbTouchDeltaX = dx
+    updateLightboxDrag(dx)
+  }
 }
 
 function onLbTouchEnd() {
-  if (lbAnimating.value) return
-  const threshold = window.innerWidth * 0.2
-  if (lbTouchDeltaX > threshold) {
-    slideToPhoto(-1) // swipe right -> prev
-  } else if (lbTouchDeltaX < -threshold) {
-    slideToPhoto(1) // swipe left -> next
-  } else {
-    // Snap back
-    lbAnimating.value = true
-    lbOffsetX.value = 0
-    setTimeout(() => { lbAnimating.value = false }, 200)
+  if (lbAnimating.value || lbOverlayAnimating.value) return
+
+  if (lbGestureAxis === 'y') {
+    const dismissThreshold = Math.min((lbViewportEl.value?.clientHeight || window.innerHeight) * 0.16, 140)
+    if (Math.abs(lbTouchDeltaY) > dismissThreshold) {
+      dismissLightboxWithGesture()
+    } else {
+      animateOverlayBack()
+    }
+    lbTouchDeltaX = 0
+    lbTouchDeltaY = 0
+    lbGestureAxis = null
+    return
   }
+
+  const threshold = getLightboxViewportWidth() * 0.2
+  if (lbTouchDeltaX > threshold) {
+    slideToPhoto(-1)
+  } else if (lbTouchDeltaX < -threshold) {
+    slideToPhoto(1)
+  } else {
+    finishCancelledDrag()
+  }
+  lbTouchDeltaX = 0
+  lbTouchDeltaY = 0
+  lbGestureAxis = null
+}
+
+function onLbTouchCancel() {
+  if (lbAnimating.value || lbOverlayAnimating.value) return
+  if (lbGestureAxis === 'y') {
+    animateOverlayBack()
+  } else {
+    finishCancelledDrag()
+  }
+  lbTouchDeltaX = 0
+  lbTouchDeltaY = 0
+  lbGestureAxis = null
 }
 
 // IntersectionObserver for infinite scroll
@@ -744,6 +937,12 @@ onMounted(() => {
 watch(marqueePhotos, (val) => {
   if (val.length > 0) {
     nextTick(() => startMarqueeLoop())
+  }
+})
+
+watch(lightboxIndex, (idx) => {
+  if (idx >= 0) {
+    preloadNearbyLightboxPhotos(idx)
   }
 })
 
@@ -797,21 +996,36 @@ onUnmounted(() => {
   overscroll-behavior: contain;
 }
 
-.lightbox-strip {
+.lightbox-media-animating {
+  transition: transform 0.22s ease, border-radius 0.22s ease;
+}
+
+.lightbox-track {
+  display: flex;
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .lightbox-slide {
-  position: absolute;
-  top: 0;
-  width: 100vw;
+  flex: 0 0 auto;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .lightbox-animating {
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
+
+.lightbox-slide img {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 </style>
